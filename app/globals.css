@@ -95,6 +95,36 @@
   .animate-reveal { animation: none; }
 }
 
+/* ── Login page logo animations ──────────────────────────────── */
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50%       { transform: translateY(-8px) scale(1.04); }
+}
+@keyframes logo-glow-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1);    }
+  50%       { opacity: 0.90; transform: scale(1.15); }
+}
+@keyframes logo-ring-outer {
+  0%, 100% { transform: scale(1);    opacity: 0.6; }
+  50%       { transform: scale(1.12); opacity: 0.2; }
+}
+@keyframes logo-ring-mid {
+  0%, 100% { transform: scale(1);    opacity: 0.7; }
+  50%       { transform: scale(1.18); opacity: 0.25; }
+}
+.login-logo-float {
+  animation: logo-float 3.6s ease-in-out infinite;
+}
+.login-logo-glow {
+  animation: logo-glow-pulse 3.6s ease-in-out infinite;
+}
+.login-logo-ring-outer {
+  animation: logo-ring-outer 3.6s ease-in-out infinite;
+}
+.login-logo-ring-mid {
+  animation: logo-ring-mid 3.6s ease-in-out infinite 0.4s;
+}
+
 .animate-float         { animation: float 5s ease-in-out infinite; }
 .animate-slide-up      { animation: slide-up 0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
 .animate-slide-right   { animation: slide-in-right 0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
@@ -149,14 +179,14 @@ html[data-palette="emerald"]  { --accent:#10B981; --accent-2:#059669; --accent-b
   --tx-2:       #3F3F46;
   --tx-3:       #71717A;
 
-  /* Sidebar in light mode */
-  --sb-bg:      #FFFFFF;
-  --sb-2:       #F4F4F5;
-  --sb-bdr:     #E4E4E7;
-  --sb-tx:      #18181B;
-  --sb-tx2:     #71717A;
-  --sb-hover:   rgba(220,95,43,0.07);
-  --sb-active:  rgba(220,95,43,0.12);
+  /* Sidebar in light mode — warm cream palette */
+  --sb-bg:      #FFF6F1;
+  --sb-2:       #FFE9DC;
+  --sb-bdr:     #F5D0BE;
+  --sb-tx:      #1A0F0A;
+  --sb-tx2:     #7A5548;
+  --sb-hover:   rgba(220,95,43,0.10);
+  --sb-active:  rgba(220,95,43,0.16);
 
   --hdr-bg:     rgba(250,250,250,0.88);
   --hdr-bdr:    #E4E4E7;
@@ -190,6 +220,12 @@ html[data-palette="emerald"]  { --accent:#10B981; --accent-2:#059669; --accent-b
   --purple-bg:     #F5F3FF;
   --purple-border: #DDD6FE;
   --purple-text:   #6D28D9;
+
+  /* Primary action button — light mode */
+  --btn-primary-bg:     linear-gradient(135deg, #C94F1C 0%, #DC5F2B 55%, #E8762F 100%);
+  --btn-primary-color:  #FFFFFF;
+  --btn-primary-shadow: 0 4px 14px rgba(200,79,28,0.35), 0 1px 3px rgba(200,79,28,0.20);
+  --btn-primary-border: rgba(200,79,28,0.40);
 }
 
 /* ── Dark mode ───────────────────────────────────────────── */
@@ -237,6 +273,12 @@ html[data-palette="emerald"]  { --accent:#10B981; --accent-2:#059669; --accent-b
   --danger-bg:     rgba(239,68,68,0.10);
   --danger-border: rgba(239,68,68,0.18);
   --danger-text:   #FCA5A5;
+
+  /* Primary action button — dark mode */
+  --btn-primary-bg:     linear-gradient(135deg, #DC5F2B 0%, #F1A682 100%);
+  --btn-primary-color:  #1A0A00;
+  --btn-primary-shadow: 0 4px 22px rgba(220,95,43,0.55), 0 0 0 1px rgba(220,95,43,0.25);
+  --btn-primary-border: rgba(220,95,43,0.45);
 
   --info-bg:       rgba(59,130,246,0.10);
   --info-border:   rgba(59,130,246,0.18);
