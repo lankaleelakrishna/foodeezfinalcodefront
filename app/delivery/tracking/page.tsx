@@ -100,7 +100,9 @@ export default function DeliveryTrackingPage() {
     }
   };
 
-  const liveLoc = selectedRider ? liveLocations[selectedRider.id] : null;
+  const liveLoc = selectedRider ? liveLocations[selectedRider.id] ?? null : null;
+  const mapLat = Number(liveLoc?.latitude ?? selectedRider?.currentLatitude ?? 0);
+  const mapLng = Number(liveLoc?.longitude ?? selectedRider?.currentLongitude ?? 0);
 
   return (
     <AuthGuard requiredRoles={['super_admin']}>
@@ -144,13 +146,27 @@ export default function DeliveryTrackingPage() {
             </button>
           </form>
           {orderTracking && (
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm space-y-1">
-              <p><span className="font-medium text-slate-700">Partner ID:</span> <span className="text-slate-500">{orderTracking.partnerId ?? '—'}</span></p>
-              <p><span className="font-medium text-slate-700">Latitude:</span> <span className="text-slate-500">{orderTracking.latitude ?? '—'}</span></p>
-              <p><span className="font-medium text-slate-700">Longitude:</span> <span className="text-slate-500">{orderTracking.longitude ?? '—'}</span></p>
-              <p><span className="font-medium text-slate-700">Speed:</span> <span className="text-slate-500">{orderTracking.speed != null ? `${orderTracking.speed} km/h` : '—'}</span></p>
-              <p><span className="font-medium text-slate-700">Assignment ID:</span> <span className="text-slate-500">{orderTracking.assignmentId ?? '—'}</span></p>
-            </div>
+            <>
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm space-y-1">
+                <p><span className="font-medium text-slate-700">Partner ID:</span> <span className="text-slate-500">{orderTracking.partnerId ?? '—'}</span></p>
+                <p><span className="font-medium text-slate-700">Latitude:</span> <span className="text-slate-500">{orderTracking.latitude ?? '—'}</span></p>
+                <p><span className="font-medium text-slate-700">Longitude:</span> <span className="text-slate-500">{orderTracking.longitude ?? '—'}</span></p>
+                <p><span className="font-medium text-slate-700">Speed:</span> <span className="text-slate-500">{orderTracking.speed != null ? `${orderTracking.speed} km/h` : '—'}</span></p>
+                <p><span className="font-medium text-slate-700">Assignment ID:</span> <span className="text-slate-500">{orderTracking.assignmentId ?? '—'}</span></p>
+              </div>
+
+              {orderTracking.latitude != null && orderTracking.longitude != null && (
+                <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200">
+                  <div className="bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Order Map</div>
+                  <iframe
+                    title="Order tracking map"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${orderTracking.longitude - 0.02}%2C${orderTracking.latitude - 0.01}%2C${orderTracking.longitude + 0.02}%2C${orderTracking.latitude + 0.01}&layer=mapnik&marker=${orderTracking.latitude}%2C${orderTracking.longitude}`}
+                    className="h-64 w-full border-0"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -248,6 +264,18 @@ export default function DeliveryTrackingPage() {
                     <p className="mt-1 text-xs text-slate-300">Updates stream in via WebSocket when the rider moves.</p>
                   </div>
                 )}
+
+                {(selectedRider?.currentLatitude && selectedRider?.currentLongitude) || (liveLoc && liveLoc.latitude && liveLoc.longitude) ? (
+                  <div className="overflow-hidden rounded-3xl border border-slate-200 p-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Map Preview</p>
+                    <iframe
+                      title="Rider live location map"
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - 0.02}%2C${mapLat - 0.01}%2C${mapLng + 0.02}%2C${mapLat + 0.01}&layer=mapnik&marker=${mapLat}%2C${mapLng}`}
+                      className="h-72 w-full border-0 rounded-2xl"
+                      loading="lazy"
+                    />
+                  </div>
+                ) : null}
 
                 {selectedRider.currentLatitude && selectedRider.currentLongitude && (
                   <div className="rounded-2xl border border-slate-100 p-4">

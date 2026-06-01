@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { customerDiscoveryApi, customerCartApi, customerOrdersApi, AddToCartPayload } from '../../../../lib/api';
-import { getCustomerToken } from '../../../../lib/customer-auth';
+import { getCustomerToken, clearCustomerTokens, isCustomerTokenValid } from '../../../../lib/customer-auth';
+import { useCartContext } from '../../cart-context';
 
 type Addon = { id: string; name: string; price: number; isRequired: boolean };
 type PricingRule = {
@@ -49,7 +50,49 @@ export default function RestaurantMenuPage() {
   const [addingItem, setAddingItem] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const [cartMap, setCartMap] = useState<Record<string, number>>({});
+  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [cartTotal, setCartTotal] = useState<number>(0);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [orderedMap, setOrderedMap] = useState<Record<string, number>>({});
+  const { setCartCount } = useCartContext();
+
+  const updateCartState = (items: any[]) => {
+    const map: Record<string, number> = {};
+    let total = 0;
+    let count = 0;
+    items.forEach((ci) => {
+      const id = String(ci.menuItemId ?? ci.id ?? '');
+      if (!id) return;
+      const qty = Number(ci.quantity) || 1;
+      map[id] = (map[id] || 0) + qty;
+      const price = Number(ci.price ?? ci.unitPrice ?? ci.totalPrice ?? 0);
+      total += price * qty;
+      count += qty;
+    });
+    setCartMap(map);
+    setCartItems(items);
+    setCartTotal(total);
+    setCartCount(count);
+  };
+
+  const fetchCart = async () => {
+    if (!getCustomerToken() || !isCustomerTokenValid()) {
+      clearCustomerTokens();
+      setCartCount(0);
+      return;
+    }
+
+    try {
+      const cartRes = await customerCartApi.get();
+      const citems: any[] = cartRes.data?.items ?? cartRes.data ?? [];
+      updateCartState(Array.isArray(citems) ? citems : []);
+    } catch (e: any) {
+      if (e?.response?.status === 401) {
+        clearCustomerTokens();
+        setCartCount(0);
+      }
+    }
+  };
 
   useEffect(() => {
     // Only validate if branchId is available (not during initial render)
@@ -98,21 +141,9 @@ export default function RestaurantMenuPage() {
     };
     load();
     // load cart quantities and recent orders count (read-only)
-    if (getCustomerToken()) {
+    if (getCustomerToken() && isCustomerTokenValid()) {
       (async () => {
-        try {
-          const cartRes = await customerCartApi.get();
-          const citems: any[] = cartRes.data?.items ?? cartRes.data ?? [];
-          const map: Record<string, number> = {};
-          citems.forEach((ci) => {
-            const id = String(ci.menuItemId ?? ci.id ?? '');
-            if (!id) return;
-            map[id] = (map[id] || 0) + (ci.quantity ?? 1);
-          });
-          setCartMap(map);
-        } catch (e) {
-          // ignore cart fetch errors (non-invasive)
-        }
+        await fetchCart();
 
         try {
           const ordersRes = await customerOrdersApi.history(1, 10);
@@ -137,6 +168,8 @@ export default function RestaurantMenuPage() {
           // ignore orders fetch errors (non-invasive)
         }
       })();
+    } else {
+      clearCustomerTokens();
     }
   }, [branchId]);
 
@@ -210,10 +243,12 @@ export default function RestaurantMenuPage() {
   };
 
   const handleAddToCart = async (item: MenuItem) => {
-    if (!getCustomerToken()) {
+    if (!getCustomerToken() || !isCustomerTokenValid()) {
+      clearCustomerTokens();
       router.push('/customer/auth/login');
       return;
     }
+
     setAddingItem(item.id);
     const payload: AddToCartPayload = {
       menuItemId: String(item.id),
@@ -221,25 +256,15 @@ export default function RestaurantMenuPage() {
       quantity: 1,
     };
     try {
-      const res = await customerCartApi.addItem(payload);
-      // Minimal instrumentation: log response for debugging (no functional changes)
-      // This helps verify whether the API creates a cart item or triggers an order.
-      // No behavior is altered — still shows the same toast.
-      // eslint-disable-next-line no-console
-      console.log('customerCartApi.addItem response:', res?.data ?? res);
-      // Fetch current cart for verification (non-invasive: logging only)
-      try {
-        const cartRes = await (await import('../../../../lib/api')).customerCartApi.get();
-        // eslint-disable-next-line no-console
-        console.log('customerCartApi.get cart after add:', cartRes?.data ?? cartRes);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('Error fetching cart after add:', e);
-      }
+      await customerCartApi.addItem(payload);
+      await fetchCart();
       showToast(`${item.name} added to cart`);
     } catch (err: any) {
-      // eslint-disable-next-line no-console
-      console.error('customerCartApi.addItem error:', err);
+      if (err?.response?.status === 401) {
+        clearCustomerTokens();
+        router.push('/customer/auth/login');
+        return;
+      }
       const msg = err?.response?.data?.message ?? 'Failed to add item';
       showToast(msg);
     } finally {
@@ -362,6 +387,94 @@ export default function RestaurantMenuPage() {
             </section>
           ))}
         </div>
+      )}
+
+      {cartItems.length > 0 && (
+        <>
+          <div className="fixed bottom-6 right-6 z-40 hidden items-center gap-3 rounded-full bg-white/95 px-4 py-3 shadow-2xl shadow-slate-800/10 backdrop-blur-sm sm:flex">
+            <button
+              type="button"
+              onClick={() => setCartDrawerOpen(true)}
+              className="inline-flex items-center gap-2 rounded-full bg-[#B88A2E] px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm transition hover:brightness-110"
+            >
+              <span className="text-lg">🛒</span>
+              Open Cart
+            </button>
+            <span className="rounded-full bg-[#B88A2E]/10 px-3 py-1 text-sm font-semibold text-[#B88A2E]">
+              {cartItems.reduce((sum, ci) => sum + (Number(ci.quantity) || 1), 0)} items
+            </span>
+            <span className="text-sm font-semibold">₹{cartTotal.toFixed(2)}</span>
+          </div>
+
+          <div className={`fixed inset-0 z-50 ${cartDrawerOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+            <div
+              className={`absolute inset-0 bg-slate-950/40 transition-opacity ${cartDrawerOpen ? 'opacity-100' : 'opacity-0'}`}
+              onClick={() => setCartDrawerOpen(false)}
+            />
+            <div
+              className={`absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl transition-transform duration-300 ${cartDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Your Cart</p>
+                  <p className="text-xs text-slate-500">{cartItems.length} item{cartItems.length === 1 ? '' : 's'}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCartDrawerOpen(false)}
+                  className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="space-y-3 px-5 py-4">
+                {cartItems.map((ci, index) => {
+                  const quantity = Number(ci.quantity) || 1;
+                  const itemPrice = Number(ci.price ?? ci.unitPrice ?? ci.totalPrice ?? 0);
+                  return (
+                    <div key={index} className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-3">
+                      {ci.imageUrl ? (
+                        <img src={ci.imageUrl} alt={ci.name ?? 'cart item'} className="h-16 w-16 rounded-2xl object-cover" />
+                      ) : (
+                        <div className="grid h-16 w-16 place-items-center rounded-2xl bg-slate-200 text-xl">🍽️</div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-slate-900">{ci.name ?? ci.title ?? 'Item'}</p>
+                        <p className="mt-1 text-sm text-slate-500">₹{itemPrice.toFixed(2)} × {quantity}</p>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-900">₹{(itemPrice * quantity).toFixed(2)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-auto border-t border-slate-200 px-5 py-4">
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>Item total</span>
+                  <span className="font-semibold text-slate-900">₹{cartTotal.toFixed(2)}</span>
+                </div>
+                <div className="mt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCartDrawerOpen(false)}
+                    className="flex-1 rounded-3xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCartDrawerOpen(false);
+                      router.push('/customer/cart');
+                    }}
+                    className="flex-1 rounded-3xl bg-[#B88A2E] px-4 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110"
+                  >
+                    View Cart
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

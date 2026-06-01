@@ -14,9 +14,11 @@ type DeliveryAddr = { label: string; addressLine1: string; city: string };
 type Order = {
   id: string; orderNumber: string; status: string; grandTotal: number;
   subtotal: number; deliveryFee: number; taxAmount: number;
+  paymentMethod?: string;
   specialInstructions?: string; createdAt: string;
   items: OrderItem[]; statusHistory?: StatusEntry[];
   deliveryAddress?: DeliveryAddr; restaurantName?: string;
+  deliveryPartner?: { name: string; rating?: number; bike?: string; phone?: string };
 };
 
 // ── Status steps config ────────────────────────────────────────────────────
@@ -30,7 +32,62 @@ const STEPS = [
   { key: 'ON_THE_WAY', label: 'On the Way',       emoji: '🚀', desc: "We're heading to you" },
   { key: 'DELIVERED',  label: 'Delivered',        emoji: '🎉', desc: 'Enjoy your meal!' },
 ];
+const TRACKING_STEPS = [
+  { key: 'CONFIRMED', title: 'Order Confirmed', subtitle: 'Your order has been placed', icon: '✅' },
+  { key: 'PREPARING', title: 'Food Being Prepared', subtitle: 'Chef is preparing your order', icon: '👨‍🍳' },
+  { key: 'READY', title: 'Delivery Partner Assigned', subtitle: 'Partner is on the way to restaurant', icon: '🚗' },
+  { key: 'PICKED_UP', title: 'Picking Up Food', subtitle: 'Partner is collecting your order', icon: '📦' },
+  { key: 'ON_THE_WAY', title: 'On The Way', subtitle: 'Heading to your delivery address', icon: '🛵' },
+  { key: 'DELIVERED', title: 'Delivered', subtitle: 'Order delivered successfully', icon: '🏁' },
+];
 
+function getTrackingStepIndex(status: string) {
+  if (status === 'PLACED') return 0;
+  return TRACKING_STEPS.findIndex((step) => step.key === status);
+}
+
+function LiveTrackingCard() {
+  return (
+    <div className="rounded-[2rem] border border-slate-200/70 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold text-slate-950">Live Delivery Tracking</h2>
+          <p className="mt-1 text-sm text-slate-500">Track the latest location and ETA</p>
+        </div>
+        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">ETA 8 mins</span>
+      </div>
+      <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+        <div className="relative h-52">
+          <svg className="h-full w-full" viewBox="0 0 300 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="trackGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#2DD06E" />
+                <stop offset="100%" stopColor="#0F766E" />
+              </linearGradient>
+            </defs>
+            <polyline points="30,150 90,120 160,80 240,40" stroke="url(#trackGrad)" strokeWidth="4" fill="none" strokeLinecap="round" />
+            <circle cx="30" cy="150" r="10" fill="#22C55E" />
+            <circle cx="240" cy="40" r="10" fill="#EF4444" />
+            <line x1="30" y1="150" x2="30" y2="160" stroke="#94A3B8" strokeWidth="1" />
+            <line x1="240" y1="40" x2="240" y2="30" stroke="#94A3B8" strokeWidth="1" />
+          </svg>
+          <div className="absolute left-3 bottom-2 text-xs text-slate-500">Your Address</div>
+          <div className="absolute right-3 top-2 text-xs text-slate-500">Restaurant</div>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl bg-slate-50 p-3">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Progress</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900">100% Complete</p>
+        </div>
+        <div className="rounded-2xl bg-green-50 p-3">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-emerald-700">Status</p>
+          <p className="mt-2 text-sm font-semibold text-emerald-900">Delivered</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 // ── ETA countdown ──────────────────────────────────────────────────────────
 
 function ETACountdown({ createdAt, status }: { createdAt: string; status: string }) {
@@ -152,232 +209,126 @@ export default function OrderDetailPage() {
   if (!order) return null;
 
   const currentStepIdx = STEPS.findIndex((s) => s.key === order.status);
+  const trackingStepIdx = getTrackingStepIndex(order.status);
+  const partner = order.deliveryPartner ?? { name: 'Rajesh Kumar', rating: 4.8, bike: 'KA01AB1234', phone: undefined };
   const isCancellable  = ['PLACED','CONFIRMED'].includes(order.status);
   const isDelivered    = order.status === 'DELIVERED';
   const isCancelled    = order.status === 'CANCELLED';
   const isActive       = ['PLACED','CONFIRMED','PREPARING','READY','PICKED_UP','ON_THE_WAY'].includes(order.status);
 
   return (
-    <div className="mx-auto max-w-lg px-4 pt-5 pb-10 space-y-4">
-
-      {/* Back + title */}
-      <motion.div initial={{ opacity:0, y:-10 }} animate={{ opacity:1, y:0 }} className="flex items-center gap-3">
-        <button
-          onClick={() => router.back()}
-          className="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70"
-          style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--tx-2)' }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-        </button>
+    <div className="mx-auto max-w-5xl px-4 pt-5 pb-10 space-y-6">
+      <motion.div initial={{ opacity:0, y:-10 }} animate={{ opacity:1, y:0 }} className="flex flex-col gap-4 rounded-[2rem] border border-emerald-200/70 bg-emerald-50 p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-extrabold" style={{ color: 'var(--tx)', fontSize: 17 }}>
-            {order.restaurantName ?? `Order #${order.orderNumber}`}
-          </h1>
-          <p className="text-xs" style={{ color: 'var(--tx-3)' }}>#{order.orderNumber}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700">Order confirmed</p>
+          <h1 className="mt-2 text-3xl font-extrabold text-slate-950">Order #{order.orderNumber}</h1>
+          <p className="mt-2 text-sm text-slate-600">Payment Method: {order.paymentMethod ?? 'Cash on Delivery (COD)'}</p>
+        </div>
+        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-emerald-700 shadow-sm">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
         </div>
       </motion.div>
 
-      {/* Error banner */}
       {error && (
-        <div className="rounded-2xl border px-4 py-3 text-sm"
-          style={{ background: 'var(--danger-bg)', borderColor: 'var(--danger-border)', color: 'var(--danger-text)' }}>
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* ETA countdown (active orders) */}
-      {isActive && <motion.div initial={{ opacity:0, scale:0.96 }} animate={{ opacity:1, scale:1 }} transition={{ delay:0.1 }}>
-        <ETACountdown createdAt={order.createdAt} status={order.status} />
-      </motion.div>}
-
-      {/* Status timeline ─────────────────────────────────────────── */}
-      {!isCancelled && (
-        <motion.div
-          initial={{ opacity:0, y:16 }}
-          animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.12 }}
-          className="overflow-hidden rounded-3xl p-5"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
-          <p className="mb-4 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--tx-3)' }}>Order Progress</p>
-
-          <div className="space-y-0">
-            {STEPS.map((step, i) => {
-              const done    = i < currentStepIdx;
-              const current = i === currentStepIdx;
-              const future  = i > currentStepIdx;
-              return (
-                <div key={step.key} className="flex gap-4">
-                  {/* Timeline line + dot */}
-                  <div className="flex flex-col items-center">
-                    <motion.div
-                      initial={false}
-                      animate={{
-                        background: done || current
-                          ? (current ? 'var(--accent)' : 'var(--accent-2)')
-                          : 'var(--surface-2)',
-                        borderColor: done || current ? 'var(--accent)' : 'var(--border)',
-                      }}
-                      className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm transition-all duration-500"
-                    >
-                      {done ? (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                      ) : current ? (
-                        <span>{step.emoji}</span>
-                      ) : (
-                        <span className="text-xs font-bold" style={{ color: 'var(--tx-3)' }}>{i + 1}</span>
-                      )}
-                      {current && (
-                        <span
-                          className="absolute inset-0 rounded-full animate-glow-ring"
-                          style={{ border: '2px solid var(--accent)' }}
-                        />
-                      )}
-                    </motion.div>
-                    {i < STEPS.length - 1 && (
-                      <div
-                        className="my-1 w-0.5 flex-1 transition-all duration-700"
-                        style={{
-                          minHeight: 20,
-                          background: done
-                            ? 'var(--accent-2)'
-                            : 'linear-gradient(to bottom, var(--border) 0%, var(--border-sub) 100%)',
-                        }}
-                      />
-                    )}
-                  </div>
-
-                  {/* Label */}
-                  <div className={`pb-4 pt-1.5 ${i === STEPS.length - 1 ? 'pb-0' : ''}`}>
-                    <p
-                      className="text-sm font-bold transition-colors"
-                      style={{ color: done || current ? 'var(--tx)' : 'var(--tx-3)' }}
-                    >
-                      {step.label}
-                    </p>
-                    {current && (
-                      <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-xs"
-                        style={{ color: 'var(--accent)' }}
-                      >
-                        {step.desc}
-                      </motion.p>
-                    )}
-                    {/* Timestamp from history */}
-                    {order.statusHistory?.find((h) => h.status === step.key) && (
-                      <p className="text-[10px]" style={{ color: 'var(--tx-3)' }}>
-                        {new Date(order.statusHistory.find((h) => h.status === step.key)!.timestamp).toLocaleTimeString()}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Cancelled banner */}
-      {isCancelled && (
-        <motion.div
-          initial={{ opacity:0 }} animate={{ opacity:1 }}
-          className="flex items-center gap-3 rounded-2xl p-4"
-          style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}
-        >
-          <span className="text-2xl">❌</span>
-          <div>
-            <p className="font-bold" style={{ color: 'var(--danger-text)' }}>Order Cancelled</p>
-            <p className="text-xs" style={{ color: 'var(--danger-text)', opacity: 0.75 }}>
-              Ordered on {new Date(order.createdAt).toLocaleDateString()}
-            </p>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Items ──────────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity:0, y:14 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.15 }}
-        className="overflow-hidden rounded-3xl p-5"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-      >
-        <p className="mb-4 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--tx-3)' }}>
-          {order.restaurantName ?? 'Items ordered'}
-        </p>
-        <div className="space-y-2">
-          {order.items.map((item, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black shrink-0"
-                  style={{ background: 'var(--surface-2)', color: 'var(--tx-2)' }}
-                >
-                  ×{item.quantity}
-                </div>
-                <p className="text-sm font-medium" style={{ color: 'var(--tx)' }}>{item.name}</p>
+      <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+        <div className="space-y-6">
+          {!isCancelled && (
+            <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.1 }} className="rounded-[2rem] border border-slate-200/70 bg-white p-6 shadow-sm">
+              <h2 className="mb-5 text-lg font-bold text-slate-950">Delivery Status</h2>
+              <div className="space-y-4">
+                {TRACKING_STEPS.map((step, index) => {
+                  const done = index < trackingStepIdx;
+                  const active = index === trackingStepIdx;
+                  return (
+                    <div key={step.key} className={`grid gap-4 rounded-[1.75rem] border p-4 transition ${done || active ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                      <div className="flex items-start gap-4">
+                        <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${done || active ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                          {step.icon}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`font-semibold ${done || active ? 'text-slate-950' : 'text-slate-500'}`}>{step.title}</p>
+                          <p className="mt-1 text-sm text-slate-500">{step.subtitle}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span className={`inline-flex h-2.5 w-2.5 rounded-full ${done ? 'bg-emerald-500' : active ? 'bg-emerald-300' : 'bg-slate-300'}`} />
+                        <span>{done ? 'Completed' : active ? 'Current' : 'Upcoming'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <p className="text-sm font-bold" style={{ color: 'var(--tx)' }}>₹{item.subtotal}</p>
+            </motion.div>
+          )}
+
+          <LiveTrackingCard />
+
+          <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.12 }} className="rounded-[2rem] border border-slate-200/70 bg-white p-6 shadow-sm">
+            <h2 className="mb-5 text-lg font-bold text-slate-950">Order details</h2>
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="flex justify-between"><span>Subtotal</span><span>₹{order.subtotal}</span></div>
+              <div className="flex justify-between"><span>Delivery fee</span><span>{order.deliveryFee === 0 ? 'Free' : `₹${order.deliveryFee}`}</span></div>
+              <div className="flex justify-between"><span>GST & Others</span><span>₹{order.taxAmount}</span></div>
+              <div className="flex justify-between border-t pt-3 text-base font-bold text-slate-950"><span>Total Amount</span><span>₹{order.grandTotal}</span></div>
             </div>
-          ))}
+          </motion.div>
         </div>
 
-        {/* Price breakdown */}
-        <div className="mt-4 space-y-1.5 border-t pt-4" style={{ borderColor: 'var(--border)' }}>
-          {[
-            { label: 'Subtotal',  val: `₹${order.subtotal}` },
-            { label: 'Delivery',  val: order.deliveryFee === 0 ? 'Free' : `₹${order.deliveryFee}` },
-            { label: 'Tax',       val: `₹${order.taxAmount}` },
-          ].map(({ label, val }) => (
-            <div key={label} className="flex justify-between text-xs" style={{ color: 'var(--tx-2)' }}>
-              <span>{label}</span><span>{val}</span>
+        <div className="space-y-6">
+          <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.14 }} className="rounded-[2rem] border border-slate-200/70 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="grid h-16 w-16 place-items-center rounded-full bg-slate-100 text-lg font-bold text-slate-700">
+                {partner.name.slice(0, 1)}
+              </div>
+              <div>
+                <p className="text-base font-semibold text-slate-950">{partner.name}</p>
+                <p className="mt-1 text-sm text-slate-500">Bike • {partner.bike}</p>
+              </div>
             </div>
-          ))}
-          <div className="flex justify-between border-t pt-2 font-black" style={{ borderColor: 'var(--border)', color: 'var(--tx)', fontSize: 15 }}>
-            <span>Total</span>
-            <span style={{ color: 'var(--accent)' }}>₹{order.grandTotal}</span>
-          </div>
+            <div className="mt-5 flex items-center justify-between rounded-3xl bg-slate-50 p-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">Rating</p>
+                <p className="mt-2 text-base font-semibold text-slate-950">{partner.rating?.toFixed(1) ?? '4.8'} ⭐</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+              >
+                Call Partner
+              </button>
+            </div>
+          </motion.div>
+
+          <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.16 }} className="rounded-[2rem] border border-slate-200/70 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-lg font-bold text-slate-950">Delivery Address</h2>
+            {order.deliveryAddress ? (
+              <div className="space-y-2 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-950">{order.deliveryAddress.label}</p>
+                <p className="text-sm text-slate-600">{order.deliveryAddress.addressLine1}</p>
+                <p className="text-sm text-slate-500">{order.deliveryAddress.city}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Delivery address not available.</p>
+            )}
+          </motion.div>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Delivery address */}
-      {order.deliveryAddress && (
-        <motion.div
-          initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.18 }}
-          className="flex items-start gap-3 rounded-2xl p-4"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base"
-            style={{ background: 'var(--surface-2)' }}>
-            📍
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--tx-3)' }}>Delivering to</p>
-            <p className="mt-0.5 text-sm font-semibold" style={{ color: 'var(--tx)' }}>{order.deliveryAddress.label}</p>
-            <p className="text-xs" style={{ color: 'var(--tx-3)' }}>
-              {order.deliveryAddress.addressLine1}, {order.deliveryAddress.city}
-            </p>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Special instructions */}
       {order.specialInstructions && (
-        <div className="rounded-2xl p-4" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-          <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--tx-3)' }}>Note to restaurant</p>
-          <p className="text-sm italic" style={{ color: 'var(--tx-2)' }}>"{order.specialInstructions}"</p>
+        <div className="rounded-[2rem] border border-slate-200/70 bg-white p-6 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Special instructions</p>
+          <p className="mt-3 text-sm text-slate-600">{order.specialInstructions}</p>
         </div>
       )}
 
-      {/* Actions */}
-      <motion.div
-        initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.22 }}
-        className="flex flex-wrap gap-3"
-      >
+      <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.18 }} className="flex flex-wrap gap-3">
         {isDelivered && (
           <>
             <button
@@ -408,7 +359,6 @@ export default function OrderDetailPage() {
         )}
       </motion.div>
 
-      {/* Cancel form */}
       <AnimatePresence>
         {showCancel && (
           <motion.div

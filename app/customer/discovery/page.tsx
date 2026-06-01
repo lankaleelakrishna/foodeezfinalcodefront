@@ -223,6 +223,7 @@ export default function DiscoveryPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const name      = getCustomerName();
+  const firstName = name?.split(' ')[0] ?? '';
   const greeting  = getGreeting();
 
   // Geolocation
@@ -235,8 +236,9 @@ export default function DiscoveryPage() {
   }, []);
 
   const normalize = (item: any) => {
-    const branchId = (item.branchId || item.id)?.trim();
-    return { ...item, id: item.id?.trim(), branchId };
+    const branchId = String(item.branchId ?? item.id ?? '').trim();
+    const id = String(item.id ?? item.branchId ?? '').trim();
+    return { ...item, id, branchId };
   };
 
   const fetchNearby = useCallback(async (lat: number, lng: number) => {
@@ -340,8 +342,11 @@ export default function DiscoveryPage() {
           transition={{ duration: 0.55 }}
         >
           <p className="text-sm font-semibold" style={{ color: 'rgba(212,175,55,0.75)' }}>
-            {greeting.emoji} {greeting.text}{name ? `, ${name.split(' ')[0]}` : ''}!
+            {greeting.emoji} {greeting.text}{firstName ? `, ${firstName}` : ''}!
           </p>
+          {firstName ? (
+            <p className="mt-4 text-xl font-semibold text-white">{firstName},</p>
+          ) : null}
           <h1 className="mt-1 text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl">
             What are you{' '}
             <span style={{ color: 'var(--accent-bright)' }}>craving</span>
@@ -426,18 +431,18 @@ export default function DiscoveryPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.08 }}
                 whileHover={{ scale: 1.03 }}
-                className="shrink-0 w-52 cursor-pointer rounded-2xl p-4"
+                className="shrink-0 w-64 md:w-72 cursor-pointer rounded-3xl p-5"
                 style={{ background: `linear-gradient(135deg,${o.from} 0%,${o.to} 100%)` }}
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="inline-block rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                    <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white">
                       {o.tag}
                     </span>
-                    <p className="mt-2 text-xl font-black text-white leading-none">{o.title}</p>
-                    <p className="mt-1 text-xs text-white/65">{o.sub}</p>
+                    <p className="mt-2 text-2xl font-black text-white leading-none">{o.title}</p>
+                    <p className="mt-1 text-sm text-white/75">{o.sub}</p>
                   </div>
-                  <span className="text-3xl">{o.emoji}</span>
+                  <span className="text-4xl">{o.emoji}</span>
                 </div>
               </motion.div>
             ))}
@@ -454,7 +459,7 @@ export default function DiscoveryPage() {
                   key={cat.q}
                   whileTap={{ scale: 0.90 }}
                   onClick={() => handleCategory(cat)}
-                  className="shrink-0 flex flex-col items-center gap-1.5 rounded-2xl px-4 py-3 transition-all duration-200"
+                  className="shrink-0 flex min-w-[5.5rem] flex-col items-center gap-2 rounded-3xl px-5 py-4 transition-all duration-200 md:min-w-[7rem]"
                   style={{
                     background: active ? 'color-mix(in srgb, var(--accent) 18%, var(--surface))' : 'var(--surface)',
                     border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
@@ -462,8 +467,8 @@ export default function DiscoveryPage() {
                     boxShadow: active ? '0 0 0 1px var(--accent)' : 'none',
                   }}
                 >
-                  <span className="text-xl leading-none">{cat.emoji}</span>
-                  <span className="text-[10px] font-semibold whitespace-nowrap">{cat.label}</span>
+                  <span className="text-2xl leading-none md:text-3xl">{cat.emoji}</span>
+                  <span className="text-xs font-semibold whitespace-nowrap md:text-sm">{cat.label}</span>
                 </motion.button>
               );
             })}
@@ -598,34 +603,6 @@ export default function DiscoveryPage() {
               </div>
             </section>
 
-            {/* Loyalty / gamification teaser */}
-            <section className="px-4">
-              <div
-                className="relative overflow-hidden rounded-3xl px-5 py-5"
-                style={{ background: 'linear-gradient(135deg,#14004A 0%,#280080 50%,#14004A 100%)' }}
-              >
-                <div className="pointer-events-none absolute right-4 top-4 text-6xl opacity-10 animate-float">🏆</div>
-                <p className="text-xs font-bold uppercase tracking-widest text-purple-300">Loyalty Rewards</p>
-                <h3 className="mt-1 text-lg font-black text-white">You have <span className="text-yellow-300">320 pts</span></h3>
-                <p className="mt-0.5 text-xs text-white/50">180 more points to unlock a free delivery</p>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full animate-progress"
-                    style={{
-                      width: '64%',
-                      background: 'linear-gradient(90deg,#A855F7 0%,#FFD700 100%)',
-                    }}
-                  />
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="text-[10px] text-white/40">320 / 500 pts</span>
-                  <button className="rounded-full px-3 py-1 text-xs font-bold text-purple-300 transition hover:text-white"
-                    style={{ background: 'rgba(168,85,247,0.2)' }}>
-                    View rewards →
-                  </button>
-                </div>
-              </div>
-            </section>
           </>
         )}
       </div>

@@ -52,6 +52,18 @@ export function getCustomerName() {
   return p?.name ?? p?.displayName ?? null;
 }
 
+export function isCustomerTokenValid() {
+  const token = getCustomerToken();
+  if (!token) return false;
+  const payload = parseJwtPayload(token);
+  if (!payload) return false;
+  if (typeof payload.exp === 'number') {
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp > now;
+  }
+  return true;
+}
+
 export function setCustomerTokens(accessToken: string, refreshToken?: string) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(CUSTOMER_TOKEN_KEY, accessToken);

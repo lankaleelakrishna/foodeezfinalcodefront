@@ -10,6 +10,7 @@ import AuthGuard from '../../components/AuthGuard';
 
 type FormFields = {
   name: string; ownerName: string; email: string; phone: string;
+  legalEntityName: string;
   address: string; city: string; state: string; zipCode: string;
   gstNumber: string; fssaiNumber: string;
   gstExpiryDate: string; fssaiExpiryDate: string;
@@ -27,6 +28,7 @@ type ScanCategory = { name: string; displayName: string; items: ScanItem[] };
 
 const EMPTY_FORM: FormFields = {
   name: '', ownerName: '', email: '', phone: '', address: '', city: '',
+  legalEntityName: '',
   state: '', zipCode: '', gstNumber: '',
   fssaiNumber: '', gstExpiryDate: '', fssaiExpiryDate: '',
   bankName: '', bankAccountHolderName: '', bankAccountNumber: '', bankAccountNumberConfirm: '',
@@ -45,6 +47,9 @@ function validate(form: FormFields): FormErrors {
 
   if (!form.name.trim()) errors.name = 'Required.';
   else if (form.name.trim().length < 2) errors.name = 'Minimum 2 characters.';
+
+  if (!form.legalEntityName.trim()) errors.legalEntityName = 'Required.';
+  else if (form.legalEntityName.trim().length < 2) errors.legalEntityName = 'Minimum 2 characters.';
 
   if (!form.ownerName.trim()) errors.ownerName = 'Required.';
   else if (form.ownerName.trim().length < 2) errors.ownerName = 'Minimum 2 characters.';
@@ -113,10 +118,10 @@ function blockNumberExtras(e: React.KeyboardEvent<HTMLInputElement>) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 // Base input styles: keep fixed height and consistent appearance for inputs and selects
-const BASE = 'mt-2 w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-[var(--accent)] text-sm bg-[var(--surface)] text-[var(--tx)] border-[var(--border)] h-12 appearance-none';
+const BASE = 'mt-2 w-full rounded-2xl border-4 px-4 py-3 outline-none transition focus:border-[var(--accent)] text-sm bg-[var(--surface)] text-[var(--tx)] border-[var(--border)] h-12 appearance-none';
 const OK   = `${BASE} `;
-const ERR  = `${BASE} border-rose-400`;
-const FILE = 'mt-2 w-full cursor-pointer rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm text-[var(--tx-3)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 file:mr-3 file:cursor-pointer file:rounded-xl file:border-0 file:bg-[var(--accent)] file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white';
+const ERR  = `${BASE} border-rose-500`;
+const FILE = 'mt-2 w-full cursor-pointer rounded-2xl border-4 border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm text-[var(--tx-3)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 file:mr-3 file:cursor-pointer file:rounded-xl file:border-0 file:bg-[var(--accent)] file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white';
 
 // ─── Field wrapper ────────────────────────────────────────────────────────────
 
@@ -125,10 +130,12 @@ function Field({ label, required, error, hint, children }: {
 }) {
   return (
     <label className="block">
-      <span className="text-sm font-medium text-[var(--tx-2)]">
-        {label}{required && <span className="ml-0.5 text-rose-500">*</span>}
-      </span>
-      {hint && <span className="ml-2 text-xs text-[var(--tx-3)]">{hint}</span>}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-[var(--tx-2)]">
+          {label}{required && <span className="ml-0.5 text-rose-500">*</span>}
+        </span>
+        {hint && <span className="text-xs text-[var(--tx-3)]">{hint}</span>}
+      </div>
       {children}
       {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
     </label>
@@ -161,6 +168,16 @@ export default function RestaurantRegisterPage() {
   const [panVerifyMessage, setPanVerifyMessage] = useState('');
   const [panVerifiedName, setPanVerifiedName] = useState('');
   const [panDob, setPanDob] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [registeredRestaurantId, setRegisteredRestaurantId] = useState<string | null>(null);
+  const [coverPhotoFile, setCoverPhotoFile] = useState<File | null>(null);
+  const [menuMode, setMenuMode] = useState<'upload' | 'manual'>('upload');
+  const [manualCatDraft, setManualCatDraft] = useState('');
+  const [manualItemDraft, setManualItemDraft] = useState<{
+    ci: number; name: string; description: string; price: string; currency: string;
+  } | null>(null);
 
   const commitPriceEdit = () => {
     if (!editingItem || !menuExtracted) { setEditingItem(null); return; }
@@ -213,8 +230,25 @@ export default function RestaurantRegisterPage() {
 
   useEffect(() => { getUserRole(); }, []);
 
+  const handleAutoCapture = () => {
+    if (!navigator.geolocation) {
+      setGeoStatus('error');
+      return;
+    }
+    setGeoStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(pos.coords.latitude.toFixed(6));
+        setLongitude(pos.coords.longitude.toFixed(6));
+        setGeoStatus('idle');
+      },
+      () => setGeoStatus('error'),
+    );
+  };
+
   const step1Fields: Array<keyof FormFields> = [
     'name', 'ownerName', 'email', 'phone', 'address', 'city', 'state', 'zipCode',
+    'legalEntityName',
   ];
 
   const validateStep1 = (currentForm: FormFields) => {
@@ -225,7 +259,6 @@ export default function RestaurantRegisterPage() {
     }, {} as FormErrors);
   };
 
-  const showBankSection = !!(form.fssaiNumber && /^\d{14}$/.test(form.fssaiNumber));
 
   const validateStep2 = (currentForm: FormFields) => {
     const allErrors = validate(currentForm);
@@ -240,6 +273,7 @@ export default function RestaurantRegisterPage() {
     }, {} as FormErrors);
   };
 
+  // Step 1 → 2: validate only, no API call yet
   const handleProceed = () => {
     setServerError('');
     const touchedFields = step1Fields.reduce(
@@ -248,24 +282,23 @@ export default function RestaurantRegisterPage() {
     setTouched((prev) => ({ ...prev, ...touchedFields }));
     const stepErrors = validateStep1(form);
     setErrors((prev) => ({ ...prev, ...stepErrors }));
-
-    if (Object.keys(stepErrors).length === 0) {
-      setStep(2);
-    } else {
+    if (Object.keys(stepErrors).length > 0) {
       setServerError('Please fix the highlighted fields before proceeding.');
+      return;
     }
+    setStep(2);
   };
 
+  // Step 2 → 3: validate only, no API call yet
   const handleProceedStep2 = () => {
     setServerError('');
     const stepErrors = validateStep2(form);
     setErrors((prev) => ({ ...prev, ...stepErrors }));
-
-    if (Object.keys(stepErrors).length === 0) {
-      setStep(3);
-    } else {
+    if (Object.keys(stepErrors).length > 0) {
       setServerError('Please fix the highlighted fields before proceeding to the next step.');
+      return;
     }
+    setStep(3);
   };
 
   // Change + live validation for touched fields
@@ -295,10 +328,11 @@ export default function RestaurantRegisterPage() {
 
   const optionalString = (value: string) => (value?.trim() ? value.trim() : undefined);
 
-  // Submit
+  // Final submit: send ALL data to the DB in a single call only when step 3 is complete
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setServerError('');
+
     const allTouched = Object.keys(EMPTY_FORM).reduce(
       (a, k) => ({ ...a, [k]: true }), {} as Record<keyof FormFields, boolean>,
     );
@@ -311,11 +345,13 @@ export default function RestaurantRegisterPage() {
       setServerError('Please confirm that you have reviewed all details before submitting.');
       return;
     }
+
     setSubmitStatus('loading');
     try {
-      // Step 1: Create the restaurant
+      // Single call — creates the restaurant record for the first time
       const res = await api.post('/restaurants', {
         name: optionalString(form.name),
+        legalEntity: optionalString(form.legalEntityName),
         ownerName: optionalString(form.ownerName),
         email: optionalString(form.email),
         phone: optionalString(form.phone),
@@ -323,11 +359,12 @@ export default function RestaurantRegisterPage() {
         city: optionalString(form.city),
         state: optionalString(form.state),
         zipCode: optionalString(form.zipCode),
-        latitude:  0,
-        longitude: 0,
+        latitude: latitude ? parseFloat(latitude) : 0,
+        longitude: longitude ? parseFloat(longitude) : 0,
+        leadSource: optionalString(form.leadSource),
         gstNumber: optionalString(form.gstNumber),
-        fssaiNumber: optionalString(form.fssaiNumber),
         gstExpiryDate: optionalString(form.gstExpiryDate),
+        fssaiNumber: optionalString(form.fssaiNumber),
         fssaiExpiryDate: optionalString(form.fssaiExpiryDate),
         bankName: optionalString(form.bankName),
         bankAccountHolderName: optionalString(form.bankAccountHolderName),
@@ -336,45 +373,47 @@ export default function RestaurantRegisterPage() {
         accountType: optionalString(form.accountType),
         ifscCode: optionalString(form.ifscCode),
         panNumber: optionalString(form.panNumber),
-        leadSource: optionalString(form.leadSource),
+        gstPresent: form.gstPresent === 'yes',
         brandDescription: optionalString(form.brandDescription),
         cuisineTags: form.cuisineTags ? form.cuisineTags.split(',').map((t) => t.trim()).filter(Boolean) : [],
         serviceRadiusKm: form.serviceRadiusKm ? Number(form.serviceRadiusKm) : undefined,
         temporaryClosure: form.temporaryClosure === 'true',
         holidayMode: form.holidayMode === 'true',
-        gstPresent: form.gstPresent === 'yes',
         menuExtractedJson: menuExtracted ? JSON.stringify(menuExtracted) : undefined,
+        status: 'review',
       });
 
       const restaurantId = res.data.id;
+      setRegisteredRestaurantId(restaurantId);
 
-      // Step 2: Upload documents (PAN, GST, FSSAI, BANK) as multipart/form-data
-      const docType2File = [
-        { type: 'PAN', file: panFile },
-        { type: 'GST', file: gstFile },
+      // Upload documents (PAN, GST, FSSAI, BANK) now that we have the ID
+      for (const { type, file } of [
+        { type: 'PAN',   file: panFile   },
+        { type: 'GST',   file: gstFile   },
         { type: 'FSSAI', file: fssaiFile },
-        { type: 'BANK', file: bankFile },
-      ];
-
-      for (const { type, file } of docType2File) {
-        if (!file) continue; // Skip if no file selected
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', type);
+        { type: 'BANK',  file: bankFile  },
+      ]) {
+        if (!file) continue;
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('type', type);
         try {
-          await api.post(`/restaurants/${restaurantId}/documents/registration`, formData, {
+          await api.post(`/restaurants/${restaurantId}/documents/registration`, fd, {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
-        } catch (uploadErr: any) {
-          console.warn(`Failed to upload ${type} document:`, uploadErr);
-          // Continue with other documents even if one fails
-        }
+        } catch { /* non-fatal */ }
       }
 
-      await api.patch(`/restaurants/${restaurantId}`, {
-        status: 'review',
-        leadStatus: 'REVIEW',
-      });
+      // Upload cover photo if provided
+      if (coverPhotoFile) {
+        const fd = new FormData();
+        fd.append('file', coverPhotoFile);
+        try {
+          await api.post(`/restaurants/${restaurantId}/register/step3/cover-photo`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        } catch { /* non-fatal */ }
+      }
 
       setSubmitStatus('success');
       setTimeout(() => router.push(`/restaurants/${restaurantId}`), 1500);
@@ -517,7 +556,7 @@ export default function RestaurantRegisterPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_180px]">
+        <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px] items-start">
           <label className="block rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm text-[var(--tx-2)] transition hover:border-[var(--accent)]">
             <span className="font-medium">{menuFile ? menuFile.name : 'Choose menu file'}</span>
             <input
@@ -568,19 +607,41 @@ export default function RestaurantRegisterPage() {
             </Field>
           </div>
 
-          <div className="flex gap-3 items-center">
-            <div className="flex-1">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
               <label className="block text-sm font-medium text-[var(--tx-2)] mb-2">Temporary closure</label>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => set('temporaryClosure', 'true')} className={`rounded-2xl px-3 py-2 text-sm transition ${form.temporaryClosure === 'true' ? 'bg-[var(--accent)] text-white' : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-2)]'}`}>ON</button>
-                <button type="button" onClick={() => set('temporaryClosure', 'false')} className={`rounded-2xl px-3 py-2 text-sm transition ${form.temporaryClosure === 'false' ? 'bg-[var(--accent)] text-white' : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-2)]'}`}>OFF</button>
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.temporaryClosure === 'true'}
+                    onChange={(e) => set('temporaryClosure', e.target.checked ? 'true' : 'false')}
+                    className="peer sr-only"
+                  />
+                  <span className="block h-6 w-12 rounded-full border-4 border-[var(--border)] bg-[var(--surface)] transition-colors duration-200 peer-checked:bg-[var(--accent)]" />
+                  <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-all duration-200 peer-checked:translate-x-6 peer-checked:shadow-lg peer-checked:shadow-[var(--accent)]/50" />
+                </label>
+                <span className={`text-sm font-semibold ${form.temporaryClosure === 'true' ? 'text-[var(--accent)]' : 'text-[var(--tx-2)]'}`}>
+                  {form.temporaryClosure === 'true' ? 'ON' : 'OFF'}
+                </span>
               </div>
             </div>
-            <div className="flex-1">
+            <div>
               <label className="block text-sm font-medium text-[var(--tx-2)] mb-2">Holiday mode</label>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => set('holidayMode', 'true')} className={`rounded-2xl px-3 py-2 text-sm transition ${form.holidayMode === 'true' ? 'bg-[var(--accent)] text-white' : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-2)]'}`}>ON</button>
-                <button type="button" onClick={() => set('holidayMode', 'false')} className={`rounded-2xl px-3 py-2 text-sm transition ${form.holidayMode === 'false' ? 'bg-[var(--accent)] text-white' : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-2)]'}`}>OFF</button>
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.holidayMode === 'true'}
+                    onChange={(e) => set('holidayMode', e.target.checked ? 'true' : 'false')}
+                    className="peer sr-only"
+                  />
+                  <span className="block h-6 w-12 rounded-full border-4 border-[var(--border)] bg-[var(--surface)] transition-colors duration-200 peer-checked:bg-[var(--accent)]" />
+                  <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-all duration-200 peer-checked:translate-x-6 peer-checked:shadow-lg peer-checked:shadow-[var(--accent)]/50" />
+                </label>
+                <span className={`text-sm font-semibold ${form.holidayMode === 'true' ? 'text-[var(--accent)]' : 'text-[var(--tx-2)]'}`}>
+                  {form.holidayMode === 'true' ? 'ON' : 'OFF'}
+                </span>
               </div>
             </div>
           </div>
@@ -667,12 +728,6 @@ export default function RestaurantRegisterPage() {
                 </div>
               </div>
             ))}
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button type="button" onClick={() => onAttach(menuExtracted)}
-                className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700">Attach extracted to registration</button>
-              <button type="button" onClick={() => { setMenuExtracted(null); onAttach(null); }}
-                className="rounded-2xl border px-4 py-2 text-sm">Clear</button>
-            </div>
           </div>
         )}
 
@@ -735,9 +790,12 @@ export default function RestaurantRegisterPage() {
 
             {step === 1 && (
               <>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <Field label="Restaurant name" required error={errors.name} hint="As per FSSAI">
                     <input {...p('name')} maxLength={100} autoComplete="organization" />
+                  </Field>
+                  <Field label="Legal entity name" required error={errors.legalEntityName}>
+                    <input {...p('legalEntityName')} maxLength={100} autoComplete="organization" />
                   </Field>
                   <Field label="Owner name" required error={errors.ownerName}>
                     <input
@@ -816,6 +874,44 @@ export default function RestaurantRegisterPage() {
                       onChange={(e) => set('zipCode', e.target.value.replace(/\D/g, '').slice(0, 6))}
                     />
                   </Field>
+                </div>
+
+                {/* Location coordinates */}
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5 space-y-4">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[var(--tx-3)]">Location coordinates</p>
+                  <button
+                    type="button"
+                    onClick={handleAutoCapture}
+                    disabled={geoStatus === 'loading'}
+                    className="rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-sm text-white transition hover:bg-[var(--accent-2)] disabled:opacity-60"
+                  >
+                    {geoStatus === 'loading' ? 'Detecting…' : 'Auto-capture from browser'}
+                  </button>
+                  {geoStatus === 'error' && (
+                    <p className="text-xs text-rose-600">Could not get location. Please enter manually or allow browser access.</p>
+                  )}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-sm font-medium text-[var(--tx-2)]">Latitude</span>
+                      <input
+                        type="text"
+                        value={latitude}
+                        onChange={(e) => setLatitude(e.target.value)}
+                        placeholder="e.g. 28.6139"
+                        className={OK}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-sm font-medium text-[var(--tx-2)]">Longitude</span>
+                      <input
+                        type="text"
+                        value={longitude}
+                        onChange={(e) => setLongitude(e.target.value)}
+                        placeholder="e.g. 77.2090"
+                        className={OK}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -960,6 +1056,7 @@ export default function RestaurantRegisterPage() {
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5 space-y-4">
                   <p className="text-xs font-semibold uppercase tracking-widest text-[var(--tx-3)]">Banking</p>
 
+                  {/* Row 1: Bank name · Account type · Account holder name */}
                   <div className="grid gap-4 sm:grid-cols-3">
                     <Field label="Bank name" error={errors.bankName}>
                       <input {...p('bankName')} maxLength={100} />
@@ -981,6 +1078,7 @@ export default function RestaurantRegisterPage() {
                     </Field>
                   </div>
 
+                  {/* Row 2: Account number · Confirm · IFSC — each in equal column */}
                   <div className="grid gap-4 sm:grid-cols-3">
                     <Field label="Account number" error={errors.bankAccountNumber} hint="9–18 digits">
                       <input
@@ -993,7 +1091,7 @@ export default function RestaurantRegisterPage() {
                         onChange={(e) => set('bankAccountNumber', e.target.value.replace(/\D/g, '').slice(0, 18))}
                       />
                     </Field>
-                    <Field label="Confirm account number" error={errors.bankAccountNumberConfirm} hint="Repeat">
+                    <Field label="Confirm account no." error={errors.bankAccountNumberConfirm} hint="Re-enter">
                       <input
                         {...p('bankAccountNumberConfirm')}
                         type="tel"
@@ -1111,7 +1209,39 @@ export default function RestaurantRegisterPage() {
                   <span className="text-sm text-[var(--tx-3)]">Review, upload menu and submit registration for super-admin review</span>
                 </div>
 
-                <div>
+                {/* Cover photo upload */}
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[var(--tx-3)]">Cover photo</p>
+                  <Field label="Upload cover photo" hint="optional · JPEG, PNG or WebP · max 10 MB">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => setCoverPhotoFile(e.target.files ? e.target.files[0] : null)}
+                      className={FILE}
+                    />
+                    {coverPhotoFile && <p className="mt-1 text-xs text-[var(--tx-3)]">Selected: {coverPhotoFile.name}</p>}
+                  </Field>
+                </div>
+
+                {/* Menu mode toggle */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMenuMode('upload')}
+                    className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${menuMode === 'upload' ? 'bg-[var(--accent)] text-white' : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-2)] hover:border-[var(--accent)]'}`}
+                  >
+                    Upload &amp; Extract
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMenuMode('manual')}
+                    className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${menuMode === 'manual' ? 'bg-[var(--accent)] text-white' : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-2)] hover:border-[var(--accent)]'}`}
+                  >
+                    Add manually
+                  </button>
+                </div>
+
+                {menuMode === 'upload' && (
                   <ScanPanel
                     menuFile={menuFile}
                     menuPreview={menuPreview}
@@ -1121,7 +1251,172 @@ export default function RestaurantRegisterPage() {
                     onScan={() => handleMenuScan()}
                     onAttach={(cats) => setMenuExtracted(cats)}
                   />
-                </div>
+                )}
+
+                {menuMode === 'manual' && (
+                  <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-5 space-y-5">
+                    <h2 className="text-lg font-semibold text-[var(--tx)]">Add menu items manually</h2>
+
+                    {/* Existing categories */}
+                    {(menuExtracted ?? []).map((cat, ci) => (
+                      <div key={ci} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-[var(--tx)]">{cat.displayName || cat.name}</p>
+                          <button
+                            type="button"
+                            onClick={() => setMenuExtracted((prev) => (prev ?? []).filter((_, i) => i !== ci))}
+                            className="text-xs text-rose-500 hover:text-rose-700"
+                          >
+                            Remove category
+                          </button>
+                        </div>
+
+                        {/* Items */}
+                        {cat.items.map((item, ii) => (
+                          <div key={ii} className="flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-[var(--tx)]">{item.name}</p>
+                              {item.description && <p className="text-xs text-[var(--tx-3)]">{item.description}</p>}
+                            </div>
+                            <p className="shrink-0 text-sm font-semibold text-[var(--tx)]">{item.price} {item.currency}</p>
+                            <button
+                              type="button"
+                              onClick={() => setMenuExtracted((prev) =>
+                                (prev ?? []).map((c, cIdx) => cIdx !== ci ? c : {
+                                  ...c, items: c.items.filter((_, iIdx) => iIdx !== ii),
+                                })
+                              )}
+                              className="shrink-0 text-xs text-rose-500 hover:text-rose-700"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+
+                        {/* Add item inline form */}
+                        {manualItemDraft?.ci === ci ? (
+                          <div className="rounded-xl border border-[var(--accent)] bg-[var(--surface)] p-3 space-y-2">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <input
+                                autoFocus
+                                placeholder="Item name *"
+                                value={manualItemDraft.name}
+                                onChange={(e) => setManualItemDraft((d) => d && { ...d, name: e.target.value })}
+                                className={OK}
+                              />
+                              <input
+                                placeholder="Description (optional)"
+                                value={manualItemDraft.description}
+                                onChange={(e) => setManualItemDraft((d) => d && { ...d, description: e.target.value })}
+                                className={OK}
+                              />
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <input
+                                placeholder="Price *"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={manualItemDraft.price}
+                                onKeyDown={blockNumberExtras}
+                                onChange={(e) => setManualItemDraft((d) => d && { ...d, price: e.target.value })}
+                                className={OK}
+                              />
+                              <select
+                                value={manualItemDraft.currency}
+                                onChange={(e) => setManualItemDraft((d) => d && { ...d, currency: e.target.value })}
+                                className={OK}
+                              >
+                                <option value="INR">INR</option>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                              </select>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                disabled={!manualItemDraft.name.trim() || !manualItemDraft.price}
+                                onClick={() => {
+                                  if (!manualItemDraft.name.trim() || !manualItemDraft.price) return;
+                                  const newItem: ScanItem = {
+                                    name: manualItemDraft.name.trim(),
+                                    description: manualItemDraft.description.trim() || undefined,
+                                    price: manualItemDraft.price,
+                                    currency: manualItemDraft.currency,
+                                  };
+                                  setMenuExtracted((prev) =>
+                                    (prev ?? []).map((c, cIdx) => cIdx !== ci ? c : { ...c, items: [...c.items, newItem] })
+                                  );
+                                  setManualItemDraft(null);
+                                }}
+                                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                Add item
+                              </button>
+                              <button type="button" onClick={() => setManualItemDraft(null)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setManualItemDraft({ ci, name: '', description: '', price: '', currency: 'INR' })}
+                            className="text-sm text-[var(--accent)] hover:underline"
+                          >
+                            + Add item
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Add category */}
+                    {manualCatDraft !== null && (
+                      <div className="flex gap-2 items-center">
+                        <input
+                          autoFocus
+                          placeholder="Category name (e.g. Starters)"
+                          value={manualCatDraft}
+                          onChange={(e) => setManualCatDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (!manualCatDraft.trim()) return;
+                              const slug = manualCatDraft.trim().toLowerCase().replace(/\s+/g, '-');
+                              setMenuExtracted((prev) => [
+                                ...(prev ?? []),
+                                { name: slug, displayName: manualCatDraft.trim(), items: [] },
+                              ]);
+                              setManualCatDraft('');
+                            }
+                            if (e.key === 'Escape') setManualCatDraft('');
+                          }}
+                          className={`${OK} flex-1`}
+                        />
+                        <button
+                          type="button"
+                          disabled={!manualCatDraft.trim()}
+                          onClick={() => {
+                            if (!manualCatDraft.trim()) return;
+                            const slug = manualCatDraft.trim().toLowerCase().replace(/\s+/g, '-');
+                            setMenuExtracted((prev) => [
+                              ...(prev ?? []),
+                              { name: slug, displayName: manualCatDraft.trim(), items: [] },
+                            ]);
+                            setManualCatDraft('');
+                          }}
+                          className="rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-sm text-white hover:bg-[var(--accent-2)] disabled:opacity-50"
+                        >
+                          Add category
+                        </button>
+                      </div>
+                    )}
+
+                    {menuExtracted && menuExtracted.length > 0 && (
+                      <p className="text-xs text-emerald-600">
+                        {menuExtracted.reduce((n, c) => n + c.items.length, 0)} item(s) across {menuExtracted.length} category/categories — will be submitted with registration.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-6 rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
                   <div className="flex items-center justify-between gap-3">

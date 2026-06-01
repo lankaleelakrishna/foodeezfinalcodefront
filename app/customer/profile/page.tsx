@@ -48,6 +48,7 @@ export default function ProfilePage() {
   const [success, setSuccess]         = useState('');
   const [showAddAddr, setShowAddAddr] = useState(false);
   const [newAddr, setNewAddr]         = useState<CreateAddressPayload>(EMPTY_ADDR);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [addingAddr, setAddingAddr]   = useState(false);
   const displayName = getCustomerName();
 
@@ -79,13 +80,34 @@ export default function ProfilePage() {
     finally { setSaving(false); }
   };
 
-  const handleAddAddress = async (e: React.FormEvent) => {
-    e.preventDefault(); setAddingAddr(true); setError('');
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault(); setAddingAddr(true); setError(''); setSuccess('');
     try {
-      const res = await customerProfileApi.addAddress(newAddr);
-      setAddresses((prev) => [...prev, res.data?.address ?? res.data]);
-      setShowAddAddr(false); setNewAddr(EMPTY_ADDR);
-    } catch { setError('Failed to add address.'); }
+      if (editingAddressId) {
+        const updatePayload = {
+          label: newAddr.label,
+          addressLine1: newAddr.addressLine1,
+          addressLine2: newAddr.addressLine2,
+          city: newAddr.city,
+          state: newAddr.state,
+          pincode: newAddr.pincode,
+          isDefault: newAddr.isDefault,
+        };
+        const res = await customerProfileApi.updateAddress(editingAddressId, updatePayload);
+        setAddresses((prev) => prev.map((a) => a.id === editingAddressId ? { ...a, ...res.data?.address ?? res.data } : a));
+        setEditingAddressId(null);
+        setSuccess('Address saved successfully!');
+      } else {
+        const res = await customerProfileApi.addAddress(newAddr);
+        setAddresses((prev) => [...prev, res.data?.address ?? res.data]);
+        setSuccess('Address saved successfully!');
+      }
+      setShowAddAddr(false);
+      setNewAddr(EMPTY_ADDR);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) { 
+      setError(err?.response?.data?.message ?? 'Failed to save address.');
+    }
     finally { setAddingAddr(false); }
   };
 
@@ -93,7 +115,28 @@ export default function ProfilePage() {
     try {
       await customerProfileApi.deleteAddress(id);
       setAddresses((prev) => prev.filter((a) => a.id !== id));
+      if (editingAddressId === id) {
+        setEditingAddressId(null);
+        setShowAddAddr(false);
+        setNewAddr(EMPTY_ADDR);
+      }
     } catch { setError('Failed to delete address.'); }
+  };
+
+  const handleEditAddress = (addr: Address) => {
+    setEditingAddressId(addr.id);
+    setNewAddr({
+      label: addr.label,
+      addressLine1: addr.addressLine1,
+      addressLine2: addr.addressLine2,
+      city: addr.city,
+      state: addr.state,
+      pincode: addr.pincode,
+      latitude: 0,
+      longitude: 0,
+      isDefault: !!addr.isDefault,
+    });
+    setShowAddAddr(true);
   };
 
   const handleSetDefault = async (id: string) => {
@@ -368,6 +411,13 @@ export default function ProfilePage() {
                       </button>
                     )}
                     <button
+                      onClick={() => handleEditAddress(addr)}
+                      className="rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
+                      style={{ background: 'var(--accent)', border: '1px solid rgba(212,175,55,0.24)', color: '#0D0906' }}
+                    >
+                      Edit
+                    </button>
+                    <button
                       onClick={() => handleDeleteAddress(addr.id)}
                       className="rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
                       style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', color: 'var(--danger-text)' }}
@@ -384,11 +434,13 @@ export default function ProfilePage() {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    onSubmit={handleAddAddress}
+                    onSubmit={handleSaveAddress}
                     className="overflow-hidden rounded-3xl p-5 space-y-3"
                     style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
                   >
-                    <p className="font-bold text-sm" style={{ color: 'var(--tx)' }}>Add new address</p>
+                    <p className="font-bold text-sm" style={{ color: 'var(--tx)' }}>
+                      {editingAddressId ? 'Edit address' : 'Add new address'}
+                    </p>
                     {(['label','addressLine1','addressLine2','city','state','pincode'] as const).map((f) => (
                       <div key={f}>
                         <label className="block text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--tx-3)' }}>
@@ -419,7 +471,7 @@ export default function ProfilePage() {
                         style={{ background: 'var(--accent)', color: '#0D0906' }}>
                         {addingAddr ? 'Saving…' : 'Save address'}
                       </button>
-                      <button type="button" onClick={() => { setShowAddAddr(false); setNewAddr(EMPTY_ADDR); }}
+                      <button type="button" onClick={() => { setShowAddAddr(false); setNewAddr(EMPTY_ADDR); setEditingAddressId(null); }}
                         className="flex-1 rounded-2xl py-2.5 text-sm font-bold transition hover:opacity-75"
                         style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--tx)' }}>
                         Cancel
