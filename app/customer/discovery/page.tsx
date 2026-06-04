@@ -226,38 +226,70 @@ export default function DiscoveryPage() {
   const firstName = name?.split(' ')[0] ?? '';
   const greeting  = getGreeting();
 
-  // Geolocation
+  // Geolocation with 8-second timeout — falls back to India centre if slow/denied
   useEffect(() => {
-    if (!navigator.geolocation) { setLocationError('Geolocation not supported.'); setLoading(false); return; }
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation not supported.');
+      return;
+    }
+    const timer = setTimeout(() => setLocationError('Location timed out.'), 8000);
     navigator.geolocation.getCurrentPosition(
-      (p) => setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      ()  => setLocationError('Using default location.'),
+      (p) => { clearTimeout(timer); setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+      ()  => { clearTimeout(timer); setLocationError('Using default location.'); },
+      { timeout: 8000, maximumAge: 60000 },
     );
+    return () => clearTimeout(timer);
   }, []);
 
-  const normalize = (item: any) => {
+  const normalize = useCallback((item: any) => {
     const branchId = String(item.branchId ?? item.id ?? '').trim();
-    const id = String(item.id ?? item.branchId ?? '').trim();
+    const id       = String(item.id ?? item.branchId ?? '').trim();
     return { ...item, id, branchId };
-  };
+  }, []);
 
-  const fetchNearby = useCallback(async (lat: number, lng: number) => {
+  // Handles all known response shapes the backend may return
+  const extractList = useCallback((res: any): Restaurant[] => {
+    const d = res.data;
+    // Try every common envelope key
+    const raw = Array.isArray(d)             ? d
+              : Array.isArray(d?.data)       ? d.data
+              : Array.isArray(d?.restaurants)? d.restaurants
+              : Array.isArray(d?.branches)   ? d.branches
+              : Array.isArray(d?.results)    ? d.results
+              : Array.isArray(d?.items)      ? d.items
+              : null;
+    if (!raw) return [];
+    return raw
+      .map(normalize)
+      .filter((r: any) => r.branchId && r.branchId !== 'undefined' && r.branchId !== '');
+  }, [normalize]);
+
+  // useExactLocation true → 50 km GPS; false → 2000 km nationwide fallback from India centre
+  const fetchNearby = useCallback(async (lat: number, lng: number, useExactLocation = true) => {
     setLoading(true); setError('');
     try {
-      const res = await customerDiscoveryApi.nearby({ lat, lng, radius: 10, limit: 20 } as NearbyParams);
-      let data: any = res.data?.data ?? res.data?.restaurants ?? res.data;
-      if (!Array.isArray(data) && data?.data) data = data.data;
-      setRestaurants(Array.isArray(data)
-        ? data.map(normalize).filter((r: any) => r.branchId && r.branchId !== 'undefined')
-        : []);
+      const radius = useExactLocation ? 50 : 2000;
+      const res = await customerDiscoveryApi.nearby({ lat, lng, radius, limit: 40 } as NearbyParams);
+      let results = extractList(res);
+
+      // Zero results → retry with global radius to catch branches with wrong/default coords
+      if (results.length === 0) {
+        try {
+          const fb = await customerDiscoveryApi.nearby({ lat, lng, radius: 50000, limit: 40 } as NearbyParams);
+          results = extractList(fb);
+        } catch { /* non-fatal */ }
+      }
+
+      setRestaurants(results);
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Failed to load restaurants.');
+      const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to load restaurants.';
+      setError(Array.isArray(msg) ? msg.join(' ') : msg);
     } finally { setLoading(false); }
-  }, []);
+  }, [extractList]);
 
   useEffect(() => {
-    if (coords) fetchNearby(coords.lat, coords.lng);
-    else if (locationError) fetchNearby(17.385, 78.4867);
+    if (coords) fetchNearby(coords.lat, coords.lng, true);
+    else if (locationError) fetchNearby(20.5937, 78.9629, false);
   }, [coords, locationError, fetchNearby]);
 
   const runSearch = async (q: string) => {
@@ -281,8 +313,8 @@ export default function DiscoveryPage() {
   const handleCategory = (cat: typeof CATEGORIES[number]) => {
     if (activeCategory === cat.q) {
       setActiveCategory(null); setQuery('');
-      const { lat, lng } = coords ?? { lat: 17.385, lng: 78.4867 };
-      fetchNearby(lat, lng);
+      const { lat, lng } = coords ?? { lat: 20.5937, lng: 78.9629 };
+      fetchNearby(lat, lng, !!coords);
     } else {
       setActiveCategory(cat.q); setQuery(cat.q);
       runSearch(cat.q);
@@ -291,8 +323,8 @@ export default function DiscoveryPage() {
 
   const clearSearch = () => {
     setQuery(''); setActiveCategory(null);
-    const { lat, lng } = coords ?? { lat: 17.385, lng: 78.4867 };
-    fetchNearby(lat, lng);
+    const { lat, lng } = coords ?? { lat: 20.5937, lng: 78.9629 };
+    fetchNearby(lat, lng, !!coords);
   };
 
   // Derived slices for mood sections

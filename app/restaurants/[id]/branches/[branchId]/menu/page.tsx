@@ -745,9 +745,11 @@ export default function BranchMenuPage() {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showScanPanel, setShowScanPanel] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [restrictedToggle, setRestrictedToggle] = useState<{ field: string; itemName: string } | null>(null);
   const [menuLoading, setMenuLoading] = useState(true);
 
   const canWrite = ['restaurant_admin', 'sales_operator', 'super_admin'].includes(userRole ?? '');
+  const canCreate = ['restaurant_admin', 'restaurant_owner', 'super_admin'].includes(userRole ?? '');
 
   const fetchMenu = async (showLoader = false) => {
     if (showLoader) setMenuLoading(true);
@@ -937,6 +939,11 @@ export default function BranchMenuPage() {
   };
 
   const toggleItemState = async (item: MenuItem, field: 'isVisible' | 'isInStock') => {
+    if (userRole !== 'super_admin') {
+      setRestrictedToggle({ field, itemName: item.name });
+      return;
+    }
+
     try {
       await api.patch(`/menu-items/${item.id}`, { [field]: !item[field] });
       setMessage('Item updated.'); setError('');
@@ -944,9 +951,29 @@ export default function BranchMenuPage() {
     } catch { setError('Unable to update item status.'); setMessage(''); }
   };
 
+  const closeRestrictedModal = () => setRestrictedToggle(null);
+
   return (
     <AuthGuard requiredRoles={['super_admin', 'sales_operator', 'restaurant_owner', 'restaurant_admin', 'restaurant_manager', 'restaurant_staff']}>
       <div className="space-y-6">
+
+          {/* Restricted action modal */}
+          {restrictedToggle && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+                <h2 className="text-xl font-semibold text-[var(--tx)]">Action restricted</h2>
+                <p className="mt-3 text-sm text-[var(--tx-3)]">
+                  Only a super admin can change the <strong>{restrictedToggle.field === 'isVisible' ? 'visibility' : 'stock status'}</strong> for <strong>{restrictedToggle.itemName}</strong>.
+                </p>
+                <div className="mt-6 flex justify-end gap-2">
+                  <button type="button" onClick={closeRestrictedModal}
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--tx-2)] hover:bg-[var(--surface-2)] transition">
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Header */}
           <div className="rounded-3xl bg-[var(--surface)] p-8 shadow-lg">
@@ -962,7 +989,7 @@ export default function BranchMenuPage() {
                 <button onClick={() => router.push(`/restaurants/${restaurantId}/branches`)} className="rounded-2xl border border-[var(--border)] px-4 py-2 text-[var(--tx-2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition">
                   Branches
                 </button>
-                {canWrite && (
+                {canCreate && (
                   <button
                     onClick={() => setShowScanPanel((v) => !v)}
                     className={`rounded-2xl px-4 py-2 text-sm font-medium transition flex items-center gap-2 ${
@@ -990,7 +1017,7 @@ export default function BranchMenuPage() {
           )}
 
           {/* Scan panel */}
-          {canWrite && showScanPanel && (
+          {canCreate && showScanPanel && (
             <ScanPanel
               branchId={branchId}
               onImported={() => {
@@ -1000,8 +1027,8 @@ export default function BranchMenuPage() {
             />
           )}
 
-          {/* Create forms — only write roles */}
-          {canWrite && (
+          {/* Create forms — only create roles */}
+          {canCreate && (
             <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
               <div className="rounded-3xl bg-[var(--surface)] p-6 shadow-sm border border-[var(--border)]">
                 <h2 className="text-xl font-semibold text-[var(--tx)]">Create category</h2>

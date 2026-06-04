@@ -257,34 +257,47 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ── Right panel — login form ───────────────────────────── */}
+      {/* ── Right panel — login form (white) ──────────────────── */}
       <div
-        className="relative flex h-full w-full lg:w-1/2 items-center justify-center overflow-y-auto px-6 py-8"
-        style={{ background: 'linear-gradient(160deg, #0F0A1E 0%, #1A1035 55%, #120D2A 100%)' }}
+        className="relative flex h-full w-full lg:w-1/2 items-center justify-center overflow-y-auto px-6 py-12"
+        style={{ background: '#FFFFFF' }}
       >
-        {/* Background glow orbs */}
-        <div className="pointer-events-none absolute top-1/4 right-8 h-72 w-72 rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%)', filter: 'blur(50px)' }} />
-        <div className="pointer-events-none absolute bottom-1/4 left-8 h-56 w-56 rounded-full"
+        {/* Decorative blobs */}
+        <div className="pointer-events-none absolute -top-16 -right-16 h-72 w-72 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+        <div className="pointer-events-none absolute -bottom-16 -left-16 h-64 w-64 rounded-full"
           style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.10) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+        {/* Top-right corner accent shape */}
+        <div className="pointer-events-none absolute top-0 right-0 h-40 w-40 overflow-hidden">
+          <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full"
+            style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.18), rgba(167,139,250,0.08))' }} />
+        </div>
+        {/* Bottom-left accent */}
+        <div className="pointer-events-none absolute bottom-0 left-0 h-32 w-32 overflow-hidden">
+          <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full"
+            style={{ background: 'linear-gradient(315deg, rgba(245,158,11,0.14), transparent)' }} />
+        </div>
 
         <div className="relative w-full max-w-sm">
 
           {/* Mobile logo */}
           <div className="mb-8 flex flex-col items-center lg:hidden">
             <img src="/foodeez-sidebar-logo.png" alt="FooDeeZ" className="h-12 w-auto object-contain"/>
-            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.24em]" style={{ color: '#A78BFA' }}>Partner Portal</p>
+            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.24em]" style={{ color: '#7C3AED' }}>Partner Portal</p>
           </div>
 
           {/* Heading */}
           <div className="mb-8">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1"
-              style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(167,139,250,0.25)' }}>
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: '#A78BFA' }} />
-              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#A78BFA' }}>Partner Portal</span>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3.5 py-1.5"
+              style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.20)' }}>
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-50" style={{ background: '#7C3AED' }} />
+                <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: '#7C3AED' }} />
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#7C3AED' }}>Partner Portal</span>
             </div>
-            <h1 className="text-3xl font-bold" style={{ color: '#F0EEFF' }}>Welcome back</h1>
-            <p className="mt-1.5 text-sm" style={{ color: '#7C6FA0' }}>Sign in to access your partner dashboard.</p>
+            <h1 className="text-4xl font-bold tracking-tight" style={{ color: '#12082A' }}>Welcome back</h1>
+            <p className="mt-2 text-sm" style={{ color: '#6B7280' }}>Sign in to access your partner dashboard.</p>
           </div>
 
           {/* Form */}
@@ -292,34 +305,54 @@ export default function LoginPage() {
 
             {/* Email */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium" style={{ color: '#C4B5FD' }}>Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                placeholder="you@restaurant.com"
-                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition placeholder:text-[#4A3F6B]"
-                style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(167,139,250,0.20)',
-                  color: '#F0EEFF',
-                }}
-                onFocus={(e) => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.65)')}
-                onBlur={(e)  => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.20)')}
-              />
+              <label className="mb-2 block text-sm font-semibold" style={{ color: '#374151' }}>Email</label>
+              <div className="relative">
+                <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#9CA3AF" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                  </svg>
+                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  placeholder="you@restaurant.com"
+                  className="w-full rounded-xl pl-10 pr-4 py-3.5 text-sm outline-none transition-all duration-200"
+                  style={{
+                    background: '#F9F7FF',
+                    border: '1.5px solid #E5E0F5',
+                    color: '#12082A',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.border = '1.5px solid #7C3AED';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(124,58,237,0.10)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.border = '1.5px solid #E5E0F5';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                />
+              </div>
             </div>
 
             {/* Password */}
             <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-sm font-medium" style={{ color: '#C4B5FD' }}>Password</label>
-                <Link href="/auth/request-reset" className="text-xs font-semibold transition hover:opacity-80" style={{ color: '#F59E0B' }}>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-sm font-semibold" style={{ color: '#374151' }}>Password</label>
+                <Link href="/auth/request-reset"
+                  className="text-xs font-semibold transition-opacity hover:opacity-75"
+                  style={{ color: '#F59E0B' }}>
                   Forgot password?
                 </Link>
               </div>
               <div className="relative">
+                <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#9CA3AF" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -327,20 +360,26 @@ export default function LoginPage() {
                   required
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="w-full rounded-xl px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-[#4A3F6B]"
+                  className="w-full rounded-xl pl-10 pr-12 py-3.5 text-sm outline-none transition-all duration-200"
                   style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(167,139,250,0.20)',
-                    color: '#F0EEFF',
+                    background: '#F9F7FF',
+                    border: '1.5px solid #E5E0F5',
+                    color: '#12082A',
                   }}
-                  onFocus={(e) => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.65)')}
-                  onBlur={(e)  => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.20)')}
+                  onFocus={(e) => {
+                    e.currentTarget.style.border = '1.5px solid #7C3AED';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(124,58,237,0.10)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.border = '1.5px solid #E5E0F5';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded p-1 transition hover:opacity-80"
-                  style={{ color: '#7C5BB0' }}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded p-1 transition hover:opacity-70"
+                  style={{ color: '#9CA3AF' }}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
@@ -359,7 +398,11 @@ export default function LoginPage() {
 
             {/* Error */}
             {error && (
-              <div className="rounded-xl px-4 py-2.5 text-sm" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.28)', color: '#FCA5A5' }}>
+              <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+                style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626' }}>
+                <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                </svg>
                 {error}
               </div>
             )}
@@ -368,12 +411,12 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl py-3 text-sm font-semibold text-white transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-xl py-3.5 text-sm font-bold text-white transition-all duration-200 hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 background: loading
-                  ? 'rgba(124,58,237,0.4)'
-                  : 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 45%, #B45309 100%)',
-                boxShadow: loading ? 'none' : '0 4px 22px rgba(124,58,237,0.40), 0 0 0 1px rgba(167,139,250,0.15)',
+                  ? 'rgba(124,58,237,0.5)'
+                  : 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 45%, #C2410C 100%)',
+                boxShadow: loading ? 'none' : '0 8px 28px rgba(124,58,237,0.38), 0 2px 8px rgba(0,0,0,0.08)',
               }}
             >
               {loading ? (
@@ -389,16 +432,17 @@ export default function LoginPage() {
           </form>
 
           {/* Divider */}
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1" style={{ background: 'rgba(124,58,237,0.2)' }} />
-            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#4A3F6B' }}>FooDeeZ</span>
-            <div className="h-px flex-1" style={{ background: 'rgba(124,58,237,0.2)' }} />
+          <div className="my-7 flex items-center gap-3">
+            <div className="h-px flex-1" style={{ background: '#EDE9FE' }} />
+            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#C4B5FD' }}>FooDeeZ</span>
+            <div className="h-px flex-1" style={{ background: '#EDE9FE' }} />
           </div>
 
           {/* Footer */}
-          <p className="text-center text-xs" style={{ color: '#3D3160' }}>
+          <p className="text-center text-xs" style={{ color: '#9CA3AF' }}>
             © {new Date().getFullYear()} FooDeeZ · All rights reserved.
           </p>
+
         </div>
       </div>
 

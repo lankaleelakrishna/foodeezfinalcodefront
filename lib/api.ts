@@ -387,18 +387,47 @@ export const authApi = {
 
 export type DocumentType = 'FSSAI' | 'GST' | 'BANK';
 
+// Backend supports: verified | pending | rejected
+// PATCH /restaurants/:restaurantId/documents/:documentId  →  { status, reason? }
+export type DocumentStatus = 'verified' | 'pending' | 'rejected';
+
 export const documentsApi = {
+  // ── Restaurant-scoped ────────────────────────────────────────────────────────
+
+  // GET  /restaurants/:restaurantId/documents
+  // Roles: RestaurantAdmin, SalesOperator, SuperAdmin
   list: (restaurantId: string) =>
     api.get(`/restaurants/${restaurantId}/documents`),
+
+  // POST /restaurants/:restaurantId/documents
   upload: (restaurantId: string, data: { type: DocumentType; s3Key: string; filename: string }) =>
     api.post(`/restaurants/${restaurantId}/documents`, data),
-  updateStatus: (restaurantId: string, documentId: string, status: 'verified' | 'rejected', reason?: string) =>
-    api.patch(`/restaurants/${restaurantId}/documents/${documentId}`, { status, ...(reason ? { reason } : {}) }),
-  // Admin endpoints
+
+  // PATCH /restaurants/:restaurantId/documents/:documentId
+  // Roles: SuperAdmin, SalesOperator
+  // status: 'verified' | 'pending' | 'rejected'  (reason required when rejecting)
+  updateStatus: (restaurantId: string, documentId: string, status: DocumentStatus, reason?: string) =>
+    api.patch(`/restaurants/${restaurantId}/documents/${documentId}`, {
+      status,
+      ...(reason ? { reason } : {}),
+    }),
+
+  // ── Admin endpoints ──────────────────────────────────────────────────────────
+
+  // GET  /admin/documents          – all documents (SuperAdmin)
   listAllForAdmin: () =>
     api.get('/admin/documents'),
+
+  // GET  /admin/documents/restaurant/:restaurantId  (SuperAdmin, SalesOperator)
   listForRestaurantAdmin: (restaurantId: string) =>
     api.get(`/admin/documents/restaurant/${restaurantId}`),
+
+  // GET  /admin/documents/:documentId/preview  (SuperAdmin, SalesOperator)
+  // Returns binary blob (image/PDF) OR JSON { url: "signed-s3-url" }
+  adminPreview: (documentId: string) =>
+    api.get(`/admin/documents/${documentId}/preview`, { responseType: 'blob' }),
+
+  // Kept for backward-compat (direct browser URL if ever needed)
   adminPreviewUrl: (documentId: string) =>
     `${(api.defaults.baseURL ?? '').replace(/\/$/, '')}/admin/documents/${documentId}/preview`,
 };
@@ -472,19 +501,22 @@ export type NearbyParams = {
   isVeg?: boolean; sortBy?: string;
 };
 
+// Discovery endpoints are customer-facing (public or customer-JWT).
+// Using customerApi ensures the partner JWT is never sent here —
+// the backend was returning empty when it received a partner token.
 export const customerDiscoveryApi = {
   nearby: (params: NearbyParams) =>
-    api.get('/customer/discovery/nearby', { params }),
+    customerApi.get('/customer/discovery/nearby', { params }),
   search: (q: string, lat: number, lng: number, page = 1, limit = 20) =>
-    api.get('/customer/discovery/search', { params: { q, lat, lng, page, limit } }),
+    customerApi.get('/customer/discovery/search', { params: { q, lat, lng, page, limit } }),
   trending: (lat: number, lng: number) =>
-    api.get('/customer/discovery/trending', { params: { lat, lng } }),
+    customerApi.get('/customer/discovery/trending', { params: { lat, lng } }),
   popularDishes: (lat: number, lng: number) =>
-    api.get('/customer/discovery/popular-dishes', { params: { lat, lng } }),
+    customerApi.get('/customer/discovery/popular-dishes', { params: { lat, lng } }),
   restaurantDetails: (branchId: string) =>
-    api.get(`/customer/discovery/restaurants/${branchId}`),
+    customerApi.get(`/customer/discovery/restaurants/${branchId}`),
   menu: (branchId: string) =>
-    api.get(`/customer/discovery/restaurants/${branchId}/menu`),
+    customerApi.get(`/customer/discovery/restaurants/${branchId}/menu`),
 };
 
 // ── Customer Cart API ──────────────────────────────────────────────────────────

@@ -94,13 +94,12 @@ export default function AdminRestaurantsPage() {
     setDocPreviewError(null);
     setError('');
     try {
-      const adminPath = `/admin/documents/${doc.id}/preview`;
-      // Fetch as blob so we can inspect what the server returned
-      const res = await api.get(adminPath, { responseType: 'blob' });
+      // Uses GET /admin/documents/:documentId/preview (SuperAdmin, SalesOperator)
+      const res = await documentsApi.adminPreview(doc.id);
       const blob: Blob = res.data;
       const isPdf = blob.type === 'application/pdf' || doc.filename.toLowerCase().endsWith('.pdf');
 
-      // If the server returned JSON (e.g. { url: "https://s3.signed..." }), extract the URL
+      // Backend may return JSON { url: "https://s3.signed..." } instead of raw bytes
       if (blob.type.includes('json') || blob.type.includes('text')) {
         const text = await blob.text();
         try {
@@ -111,10 +110,9 @@ export default function AdminRestaurantsPage() {
             setDocPreview({ url: signedUrl, filename: doc.filename, isPdf });
             return;
           }
-        } catch { /* not JSON, fall through */ }
+        } catch { /* not JSON — fall through to blob */ }
       }
 
-      // Binary content (image / PDF bytes) — create an object URL
       const blobUrl = URL.createObjectURL(blob);
       setDocPreview({ url: blobUrl, filename: doc.filename, isPdf });
     } catch (err: any) {
@@ -166,7 +164,12 @@ export default function AdminRestaurantsPage() {
     try {
       const response = await api.get('/restaurants', { params: { status: statusFilter || 'review' } });
       const data = Array.isArray(response.data) ? response.data : response.data?.data || [];
-      setRestaurants(data.filter((r: Restaurant) => r.status === (statusFilter || 'review')));
+      // When viewing the 'review' queue, include both 'review' and 'pending' restaurants
+      if ((statusFilter || 'review') === 'review') {
+        setRestaurants(data.filter((r: Restaurant) => r.status === 'review' || r.status === 'pending'));
+      } else {
+        setRestaurants(data.filter((r: Restaurant) => r.status === (statusFilter || 'review')));
+      }
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Failed to load restaurants.';
       setError(Array.isArray(msg) ? msg.join(' ') : msg);
@@ -216,13 +219,14 @@ export default function AdminRestaurantsPage() {
     fetchRestaurantDetails(restaurant.id);
   };
 
-  const handleAction = async (restaurantId: string, newStatus: 'active' | 'rejected') => {
+  const handleAction = async (restaurantId: string, newStatus: 'active' | 'pending') => {
     setActionLoading(true);
     try {
-      await api.patch(`/restaurants/${restaurantId}`, {
-        status: newStatus,
-        leadStatus: newStatus === 'active' ? 'ACTIVATED' : 'REJECTED',
-      });
+      const payload: any = { status: newStatus };
+      if (newStatus === 'active') {
+        payload.leadStatus = 'ACTIVATED';
+      }
+      await api.patch(`/restaurants/${restaurantId}`, payload);
       setAction(null);
       setSelectedRestaurant(null);
       await fetchRestaurants();
@@ -236,18 +240,56 @@ export default function AdminRestaurantsPage() {
     if (!selectedRestaurant) return;
     setActionLoading(true);
     const parsedMenu = parseMenu(selectedRestaurant);
+
+    // Approximate city → coordinates lookup so branches are discoverable on the map
+    const CITY_COORDS: Record<string, [number, number]> = {
+      'hyderabad': [17.3850, 78.4867], 'secunderabad': [17.4399, 78.4983],
+      'bangalore': [12.9716, 77.5946], 'bengaluru': [12.9716, 77.5946],
+      'mumbai': [19.0760, 72.8777], 'pune': [18.5204, 73.8567],
+      'delhi': [28.6139, 77.2090], 'new delhi': [28.6139, 77.2090],
+      'noida': [28.5355, 77.3910], 'gurgaon': [28.4595, 77.0266], 'gurugram': [28.4595, 77.0266],
+      'chennai': [13.0827, 80.2707], 'kolkata': [22.5726, 88.3639],
+      'ahmedabad': [23.0225, 72.5714], 'surat': [21.1702, 72.8311],
+      'jaipur': [26.9124, 75.7873], 'lucknow': [26.8467, 80.9462],
+      'kanpur': [26.4499, 80.3319], 'nagpur': [21.1458, 79.0882],
+      'patna': [25.5941, 85.1376], 'indore': [22.7196, 75.8577],
+      'bhopal': [23.2599, 77.4126], 'visakhapatnam': [17.6868, 83.2185],
+      'vadodara': [22.3072, 73.1812], 'coimbatore': [11.0168, 76.9558],
+      'kochi': [9.9312, 76.2673], 'thiruvananthapuram': [8.5241, 76.9366],
+      'mysuru': [12.2958, 76.6394], 'mysore': [12.2958, 76.6394],
+      'mangaluru': [12.9141, 74.8560], 'mangalore': [12.9141, 74.8560],
+      'chandigarh': [30.7333, 76.7794], 'amritsar': [31.6340, 74.8723],
+      'bhubaneswar': [20.2961, 85.8245], 'guwahati': [26.1445, 91.7362],
+    };
+    const cityKey = (selectedRestaurant.city ?? '').toLowerCase().trim();
+    const [branchLat, branchLng] = CITY_COORDS[cityKey] ?? [17.3850, 78.4867];
+
     try {
       // 1. Use the proper approval endpoint
       setForwardStatus('Approving registration…');
       await api.post(`/restaurants/${restaurantId}/approve-registration`);
 
-      // 2. Find or create a default branch
+      // 2. Find or create a default branch; also fix existing branches with bad coords/status
       setForwardStatus('Setting up branch…');
       let branchId: string | null = null;
       try {
         const brRes = await api.get(`/restaurants/${restaurantId}/branches`);
-        const branches: { id: string }[] = Array.isArray(brRes.data) ? brRes.data : (brRes.data?.data ?? []);
-        if (branches.length > 0) branchId = branches[0].id;
+        const branches: { id: string; latitude?: number; longitude?: number; isOnline?: boolean }[] =
+          Array.isArray(brRes.data) ? brRes.data : (brRes.data?.data ?? []);
+        if (branches.length > 0) {
+          branchId = branches[0].id;
+          // Patch the branch online and give it real coordinates if it has placeholder 0,0
+          const b = branches[0];
+          if (!b.isOnline || !b.latitude || !b.longitude) {
+            try {
+              await api.patch(`/restaurants/${restaurantId}/branches/${branchId}`, {
+                isOnline: true,
+                latitude:  b.latitude  || branchLat,
+                longitude: b.longitude || branchLng,
+              });
+            } catch {}
+          }
+        }
       } catch {}
 
       if (!branchId) {
@@ -257,11 +299,11 @@ export default function AdminRestaurantsPage() {
           city: selectedRestaurant.city,
           state: selectedRestaurant.state,
           zipCode: selectedRestaurant.zipCode,
-          isOnline: false,
+          isOnline: true,
           openingTime: '09:00',
           closingTime: '22:00',
-          latitude:  0,
-          longitude: 0,
+          latitude:  branchLat,
+          longitude: branchLng,
         });
         branchId = brRes.data.id as string;
       }
@@ -316,6 +358,10 @@ export default function AdminRestaurantsPage() {
   };
 
   const pendingCr = changeRequests.filter((r) => r.status === 'pending');
+
+  // Split restaurants into review / pending columns for side-by-side display
+  const reviewRestaurants = restaurants.filter((r) => r.status === 'review');
+  const pendingRestaurants = restaurants.filter((r) => r.status === 'pending');
 
   return (
     <AuthGuard requiredRoles={['super_admin']}>
@@ -420,14 +466,42 @@ export default function AdminRestaurantsPage() {
         ) : restaurants.length === 0 ? (
           <div className="rounded-3xl bg-[var(--surface)] p-8 text-center text-[var(--tx-3)]">No restaurants in {statusFilter || 'review'} status.</div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-3 items-start">
-            {/* List */}
+          <div className="grid gap-6 lg:grid-cols-4 items-start">
+            {/* Review list */}
             <div className="rounded-3xl bg-[var(--surface)] shadow-sm lg:col-span-1">
               <div className="border-b border-[var(--border)] px-6 py-4">
-                <h2 className="text-lg font-semibold text-[var(--tx)]">Restaurants ({restaurants.length})</h2>
+                <h2 className="text-lg font-semibold text-[var(--tx)]">Review ({reviewRestaurants.length})</h2>
               </div>
               <div className="divide-y divide-[var(--border)]">
-                {restaurants.map((restaurant) => (
+                {reviewRestaurants.map((restaurant) => (
+                  <button key={restaurant.id} onClick={() => handleSelectRestaurant(restaurant)}
+                    className={`w-full text-left px-6 py-4 transition ${
+                      selectedRestaurant?.id === restaurant.id
+                        ? 'bg-[var(--info-bg)] border-l-4 border-[var(--accent)]'
+                        : 'hover:bg-[var(--surface-2)]'
+                    }`}>
+                    <p className="font-semibold text-[var(--tx)]">{restaurant.name}</p>
+                    <p className="mt-1 text-sm text-[var(--tx-3)]">{restaurant.ownerName}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[restaurant.status] || 'bg-[var(--surface-2)]'}`}>
+                        {restaurant.status}
+                      </span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-[var(--surface-2)] text-[var(--tx-3)]">
+                        Step {restaurant.onboardingStep}/5
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Pending list */}
+            <div className="rounded-3xl bg-[var(--surface)] shadow-sm lg:col-span-1">
+              <div className="border-b border-[var(--border)] px-6 py-4">
+                <h2 className="text-lg font-semibold text-[var(--tx)]">Pending ({pendingRestaurants.length})</h2>
+              </div>
+              <div className="divide-y divide-[var(--border)]">
+                {pendingRestaurants.map((restaurant) => (
                   <button key={restaurant.id} onClick={() => handleSelectRestaurant(restaurant)}
                     className={`w-full text-left px-6 py-4 transition ${
                       selectedRestaurant?.id === restaurant.id
@@ -590,6 +664,7 @@ export default function AdminRestaurantsPage() {
                                     </button>
                                   </div>
                                 </div>
+                                {/* uploaded → Accept / Reject */}
                                 {doc.status === 'uploaded' && (
                                   <div className="flex gap-2 pt-1">
                                     <button
@@ -603,10 +678,43 @@ export default function AdminRestaurantsPage() {
                                     <button
                                       type="button"
                                       disabled={docVerifyLoading === doc.id}
-                                      onClick={() => { setDocRejectModal(doc); setDocRejectReason(''); }}
+                                      onClick={async () => {
+                                        if (!selectedRestaurant) return;
+                                        setDocVerifyLoading(doc.id);
+                                        try {
+                                          await documentsApi.updateStatus(selectedRestaurant.id, doc.id, 'pending');
+                                          await fetchDocuments(selectedRestaurant.id);
+                                        } catch (err: any) {
+                                          const msg = err?.response?.data?.message || 'Failed to update document.';
+                                          alert(Array.isArray(msg) ? msg.join(' ') : msg);
+                                        } finally { setDocVerifyLoading(null); }
+                                      }}
                                       className="flex-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60 transition"
                                     >
-                                      Reject
+                                      {docVerifyLoading === doc.id ? 'Moving…' : 'Reject'}
+                                    </button>
+                                  </div>
+                                )}
+                                {/* rejected → Reset to Pending so owner can re-upload */}
+                                {doc.status === 'rejected' && (
+                                  <div className="flex gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      disabled={docVerifyLoading === doc.id}
+                                      onClick={async () => {
+                                        if (!selectedRestaurant) return;
+                                        setDocVerifyLoading(doc.id);
+                                        try {
+                                          await documentsApi.updateStatus(selectedRestaurant.id, doc.id, 'pending');
+                                          await fetchDocuments(selectedRestaurant.id);
+                                        } catch (err: any) {
+                                          const msg = err?.response?.data?.message || 'Failed to reset document.';
+                                          alert(Array.isArray(msg) ? msg.join(' ') : msg);
+                                        } finally { setDocVerifyLoading(null); }
+                                      }}
+                                      className="flex-1 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-60 transition"
+                                    >
+                                      {docVerifyLoading === doc.id ? 'Resetting…' : 'Reset to Pending'}
                                     </button>
                                   </div>
                                 )}
@@ -731,8 +839,8 @@ export default function AdminRestaurantsPage() {
                       Forward to Restaurant Admin
                     </button>
                     <button onClick={() => setAction('reject')} disabled={actionLoading}
-                      className="w-full rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 font-semibold hover:bg-rose-100 disabled:opacity-60">
-                      Reject
+                      className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 font-semibold hover:bg-amber-100 disabled:opacity-60">
+                      Move to Pending
                     </button>
                   </div>
                 </div>
@@ -774,22 +882,22 @@ export default function AdminRestaurantsPage() {
                 </>
               ) : (
                 <>
-                  <h3 className="text-lg font-semibold text-[var(--tx)]">Reject Restaurant?</h3>
+                  <h3 className="text-lg font-semibold text-[var(--tx)]">Move Back to Pending?</h3>
                   <p className="mt-2 text-sm text-[var(--tx-3)]">
-                    This will reject <strong className="text-[var(--tx)]">{selectedRestaurant.name}</strong> and the registration will be marked as rejected.
+                    <strong className="text-[var(--tx)]">{selectedRestaurant.name}</strong> will be moved back to <span className="font-semibold text-amber-600">pending</span> status so the restaurant can make corrections and resubmit.
                   </p>
                 </>
               )}
               <div className="mt-6 flex gap-3">
                 <button
-                  onClick={() => { if (action === 'forward') handleForward(selectedRestaurant.id); else handleAction(selectedRestaurant.id, 'rejected'); }}
+                  onClick={() => { if (action === 'forward') handleForward(selectedRestaurant.id); else handleAction(selectedRestaurant.id, 'pending'); }}
                   disabled={actionLoading}
                   className={`flex-1 rounded-2xl px-4 py-2 text-white font-semibold disabled:opacity-60 ${
                     action === 'forward' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
                   }`}>
                   {actionLoading
-                    ? (action === 'forward' ? 'Forwarding…' : 'Rejecting…')
-                    : (action === 'forward' ? 'Confirm & Forward' : 'Confirm Rejection')}
+                    ? (action === 'forward' ? 'Forwarding…' : 'Moving to Pending…')
+                    : (action === 'forward' ? 'Confirm & Forward' : 'Move to Pending')}
                 </button>
                 <button onClick={() => { setAction(null); setForwardStatus(''); }} disabled={actionLoading}
                   className="flex-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-[var(--tx-2)] hover:bg-[var(--surface-2)] disabled:opacity-60">

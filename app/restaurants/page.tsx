@@ -338,12 +338,35 @@ export default function RestaurantsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [cuisineFilter, setCuisineFilter] = useState('all');
 
+  // Sync status filter from URL on mount and navigation
+  useEffect(() => {
+    const status = searchParams?.get('status') ?? 'all';
+    setStatusFilter(status);
+  }, [searchParams]);
+
+  // Re-fetch whenever statusFilter changes so the backend also filters correctly.
+  // Passing the status param prevents backends that default to active-only from
+  // hiding pending/review restaurants.
   useEffect(() => {
     setUserRole(getUserRole());
-    api.get('/restaurants')
+    setLoading(true);
+    setError('');
+
+    // For 'onboarding' we need both pending and review — fetch without status
+    // and let the frontend filter handle it; otherwise pass status to backend.
+    const params: Record<string, string> = {};
+    if (statusFilter !== 'all' && statusFilter !== 'onboarding') {
+      params.status = statusFilter;
+    }
+
+    api.get('/restaurants', { params })
       .then((r) => {
+        // Normalise both array and paginated-object responses: { data: [] } or { restaurants: [] }
+        const raw: Restaurant[] = Array.isArray(r.data)
+          ? r.data
+          : (r.data?.data ?? r.data?.restaurants ?? []);
         // Sort so user's own restaurant appears first
-        const sorted = [...r.data].sort((a, b) => {
+        const sorted = [...raw].sort((a, b) => {
           if (a.isMine === b.isMine) return 0;
           return a.isMine ? -1 : 1;
         });
@@ -351,12 +374,7 @@ export default function RestaurantsPage() {
       })
       .catch(() => setError('Unable to load restaurant list.'))
       .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    const status = searchParams?.get('status') ?? 'all';
-    setStatusFilter(status);
-  }, [searchParams]);
+  }, [statusFilter]);
 
   const cuisines = Array.from(new Set(restaurants.flatMap((r) => r.cuisineTags ?? []))).sort();
   const filteredRestaurants = restaurants.filter((restaurant) => {

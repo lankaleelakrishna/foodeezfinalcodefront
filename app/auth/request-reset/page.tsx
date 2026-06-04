@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '../../../lib/api';
@@ -151,8 +151,20 @@ export default function RequestResetPage() {
 
   const isReset = step === 'reset';
 
-  // ── Shared input style ──────────────────────────────────────────────────────
-  const inputCls = 'w-full rounded-xl px-4 py-3 text-sm outline-none transition placeholder:text-[#4A3F6B]';
+  const inputBase: React.CSSProperties = {
+    background: '#F9F7FF',
+    border: '1.5px solid #E5E0F5',
+    color: '#12082A',
+  };
+  const inputCls = 'w-full rounded-xl px-4 py-3.5 text-sm outline-none transition-all duration-200 placeholder:text-[#A89FC5]';
+  const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.border = '1.5px solid #7C3AED';
+    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(124,58,237,0.10)';
+  };
+  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.border = '1.5px solid #E5E0F5';
+    e.currentTarget.style.boxShadow = 'none';
+  };
 
   return (
     <main className="flex h-screen overflow-hidden">
@@ -225,23 +237,31 @@ export default function RequestResetPage() {
         </div>
       </div>
 
-      {/* ── Right panel — form ─────────────────────────────────── */}
+      {/* ── Right panel — form (white) ─────────────────────────── */}
       <div
-        className="relative flex h-full w-full lg:w-1/2 flex-col items-center justify-start overflow-y-auto px-6 py-10"
-        style={{ background: 'linear-gradient(160deg, #0F0A1E 0%, #1A1035 55%, #120D2A 100%)' }}
+        className="relative flex h-full w-full lg:w-1/2 flex-col items-center justify-center overflow-y-auto px-6 py-10"
+        style={{ background: '#FFFFFF' }}
       >
-        {/* Background glow orbs */}
-        <div className="pointer-events-none absolute top-1/3 right-6 h-64 w-64 rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%)', filter: 'blur(50px)' }} />
-        <div className="pointer-events-none absolute bottom-1/3 left-6 h-48 w-48 rounded-full"
+        {/* Decorative blobs */}
+        <div className="pointer-events-none absolute -top-16 -right-16 h-72 w-72 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+        <div className="pointer-events-none absolute -bottom-16 -left-16 h-64 w-64 rounded-full"
           style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.10) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+        <div className="pointer-events-none absolute top-0 right-0 h-40 w-40 overflow-hidden">
+          <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full"
+            style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.18), rgba(167,139,250,0.08))' }} />
+        </div>
+        <div className="pointer-events-none absolute bottom-0 left-0 h-32 w-32 overflow-hidden">
+          <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full"
+            style={{ background: 'linear-gradient(315deg, rgba(245,158,11,0.14), transparent)' }} />
+        </div>
 
         <div className="relative w-full max-w-sm">
 
           {/* Mobile logo */}
           <div className="mb-6 flex flex-col items-center lg:hidden">
             <img src="/foodeez-sidebar-logo.png" alt="FooDeeZ" className="h-10 w-auto object-contain"/>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: '#A78BFA' }}>Partner Portal</p>
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: '#7C3AED' }}>Partner Portal</p>
           </div>
 
           {/* Step indicator */}
@@ -254,19 +274,19 @@ export default function RequestResetPage() {
                   <div
                     className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all"
                     style={{
-                      background: done ? 'rgba(16,185,129,0.9)' : active ? 'linear-gradient(135deg,#7C3AED,#5B21B6)' : 'rgba(255,255,255,0.08)',
-                      color: done || active ? '#fff' : '#4A3F6B',
-                      boxShadow: active ? '0 0 0 3px rgba(124,58,237,0.25)' : done ? '0 0 0 3px rgba(16,185,129,0.2)' : 'none',
+                      background: done ? '#10B981' : active ? 'linear-gradient(135deg,#7C3AED,#5B21B6)' : '#F3F0FF',
+                      color: done || active ? '#fff' : '#A89FC5',
+                      boxShadow: active ? '0 0 0 3px rgba(124,58,237,0.18)' : done ? '0 0 0 3px rgba(16,185,129,0.18)' : 'none',
                     }}
                   >
                     {done ? '✓' : i + 1}
                   </div>
-                  <span className="text-xs font-semibold" style={{ color: active ? '#C4B5FD' : done ? '#6EE7B7' : '#4A3F6B' }}>
+                  <span className="text-xs font-semibold" style={{ color: active ? '#7C3AED' : done ? '#10B981' : '#A89FC5' }}>
                     {label}
                   </span>
                   {i < 1 && (
                     <div className="mx-1 h-px w-10 rounded-full transition-all"
-                      style={{ background: isReset ? 'rgba(16,185,129,0.5)' : 'rgba(124,58,237,0.2)' }} />
+                      style={{ background: isReset ? 'rgba(16,185,129,0.4)' : '#E5E0F5' }} />
                   )}
                 </div>
               );
@@ -275,10 +295,10 @@ export default function RequestResetPage() {
 
           {/* Heading */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold" style={{ color: '#F0EEFF' }}>
+            <h1 className="text-3xl font-bold tracking-tight" style={{ color: '#12082A' }}>
               {isReset ? 'Set new password' : 'Reset password'}
             </h1>
-            <p className="mt-1 text-sm" style={{ color: '#7C6FA0' }}>
+            <p className="mt-2 text-sm" style={{ color: '#6B7280' }}>
               {isReset
                 ? 'Enter the token from your email and choose a new password.'
                 : 'Enter your partner email to receive a reset token.'}
@@ -289,35 +309,58 @@ export default function RequestResetPage() {
           {!isReset && (
             <form onSubmit={handleSendReset} className="space-y-5">
               <div>
-                <label className="mb-1.5 block text-sm font-medium" style={{ color: '#C4B5FD' }}>Email</label>
-                <input
-                  type="email" required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@restaurant.com"
-                  className={inputCls}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(167,139,250,0.20)', color: '#F0EEFF' }}
-                  onFocus={(e) => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.65)')}
-                  onBlur={(e)  => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.20)')}
-                />
+                <label className="mb-2 block text-sm font-semibold" style={{ color: '#374151' }}>Email</label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#9CA3AF" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                  </div>
+                  <input
+                    type="email" required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@restaurant.com"
+                    className={`${inputCls} pl-10`}
+                    style={inputBase}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
+                  />
+                </div>
               </div>
 
-              {error  && <div className="rounded-xl px-4 py-2.5 text-sm" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.28)', color: '#FCA5A5' }}>{error}</div>}
-              {status && <div className="rounded-xl px-4 py-2.5 text-sm" style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.28)', color: '#6EE7B7' }}>{status}</div>}
+              {error && (
+                <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+                  style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626' }}>
+                  <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                  </svg>
+                  {error}
+                </div>
+              )}
+              {status && (
+                <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+                  style={{ background: '#F0FDF4', border: '1px solid #86EFAC', color: '#16A34A' }}>
+                  <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                  </svg>
+                  {status}
+                </div>
+              )}
 
               <button
                 type="submit" disabled={loading}
-                className="w-full rounded-xl py-3 text-sm font-semibold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+                className="w-full rounded-xl py-3.5 text-sm font-bold text-white transition-all duration-200 hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
                 style={{
-                  background: loading ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 45%, #B45309 100%)',
-                  boxShadow: loading ? 'none' : '0 4px 22px rgba(124,58,237,0.40)',
+                  background: loading ? 'rgba(124,58,237,0.5)' : 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 45%, #C2410C 100%)',
+                  boxShadow: loading ? 'none' : '0 8px 28px rgba(124,58,237,0.38), 0 2px 8px rgba(0,0,0,0.08)',
                 }}
               >
                 {loading ? 'Sending…' : 'Send reset link'}
               </button>
 
               <div className="text-center">
-                <Link href="/auth/login" className="text-sm font-semibold transition hover:opacity-80" style={{ color: '#F59E0B' }}>
+                <Link href="/auth/login" className="text-sm font-semibold transition-opacity hover:opacity-75" style={{ color: '#F59E0B' }}>
                   ← Back to sign in
                 </Link>
               </div>
@@ -329,45 +372,58 @@ export default function RequestResetPage() {
             <form onSubmit={handleResetPassword} className="space-y-5">
 
               {status && (
-                <div className="flex items-start gap-2.5 rounded-xl px-4 py-3" style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.28)' }}>
-                  <svg className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#6EE7B7' }} viewBox="0 0 20 20" fill="currentColor">
+                <div className="flex items-start gap-3 rounded-xl px-4 py-3"
+                  style={{ background: '#F0FDF4', border: '1px solid #86EFAC' }}>
+                  <svg className="mt-0.5 h-4 w-4 shrink-0 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
                   </svg>
-                  <p className="text-sm" style={{ color: '#6EE7B7' }}>{status}</p>
+                  <p className="text-sm" style={{ color: '#16A34A' }}>{status}</p>
                 </div>
               )}
 
               {/* Reset token */}
               <div>
-                <label className="mb-1.5 block text-sm font-medium" style={{ color: '#C4B5FD' }}>Reset token</label>
-                <input
-                  type="text" required
-                  value={resetToken}
-                  onChange={(e) => setResetToken(e.target.value)}
-                  placeholder="Paste token from email"
-                  className={inputCls}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(167,139,250,0.20)', color: '#F0EEFF' }}
-                  onFocus={(e) => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.65)')}
-                  onBlur={(e)  => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.20)')}
-                />
+                <label className="mb-2 block text-sm font-semibold" style={{ color: '#374151' }}>Reset token</label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#9CA3AF" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                    </svg>
+                  </div>
+                  <input
+                    type="text" required
+                    value={resetToken}
+                    onChange={(e) => setResetToken(e.target.value)}
+                    placeholder="Paste token from email"
+                    className={`${inputCls} pl-10`}
+                    style={inputBase}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
+                  />
+                </div>
               </div>
 
               {/* New password */}
               <div>
-                <label className="mb-1.5 block text-sm font-medium" style={{ color: '#C4B5FD' }}>New password</label>
+                <label className="mb-2 block text-sm font-semibold" style={{ color: '#374151' }}>New password</label>
                 <div className="relative">
+                  <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#9CA3AF" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                  </div>
                   <input
                     type={showPw ? 'text' : 'password'} required
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Min. 8 characters"
-                    className={`${inputCls} pr-12`}
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(167,139,250,0.20)', color: '#F0EEFF' }}
-                    onFocus={(e) => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.65)')}
-                    onBlur={(e)  => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.20)')}
+                    className={`${inputCls} pl-10 pr-12`}
+                    style={inputBase}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
                   />
                   <button type="button" onClick={() => setShowPw(!showPw)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 transition hover:opacity-80" style={{ color: '#7C5BB0' }}>
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 transition hover:opacity-70" style={{ color: '#9CA3AF' }}>
                     <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                       {showPw
                         ? <><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/></>
@@ -380,20 +436,25 @@ export default function RequestResetPage() {
 
               {/* Confirm password */}
               <div>
-                <label className="mb-1.5 block text-sm font-medium" style={{ color: '#C4B5FD' }}>Confirm password</label>
+                <label className="mb-2 block text-sm font-semibold" style={{ color: '#374151' }}>Confirm password</label>
                 <div className="relative">
+                  <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#9CA3AF" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                  </div>
                   <input
                     type={showConfirm ? 'text' : 'password'} required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Repeat your password"
-                    className={`${inputCls} pr-12`}
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(167,139,250,0.20)', color: '#F0EEFF' }}
-                    onFocus={(e) => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.65)')}
-                    onBlur={(e)  => (e.currentTarget.style.border = '1px solid rgba(167,139,250,0.20)')}
+                    className={`${inputCls} pl-10 pr-12`}
+                    style={inputBase}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
                   />
                   <button type="button" onClick={() => setShowConfirm(!showConfirm)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 transition hover:opacity-80" style={{ color: '#7C5BB0' }}>
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 transition hover:opacity-70" style={{ color: '#9CA3AF' }}>
                     <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                       {showConfirm
                         ? <><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/></>
@@ -405,20 +466,21 @@ export default function RequestResetPage() {
               </div>
 
               {error && (
-                <div className="flex items-start gap-2.5 rounded-xl px-4 py-3" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.28)' }}>
-                  <svg className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#FCA5A5' }} viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+                  style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626' }}>
+                  <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
                   </svg>
-                  <p className="text-sm" style={{ color: '#FCA5A5' }}>{error}</p>
+                  {error}
                 </div>
               )}
 
               <button
                 type="submit" disabled={loading}
-                className="w-full rounded-xl py-3 text-sm font-semibold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+                className="w-full rounded-xl py-3.5 text-sm font-bold text-white transition-all duration-200 hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
                 style={{
-                  background: loading ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 45%, #B45309 100%)',
-                  boxShadow: loading ? 'none' : '0 4px 22px rgba(124,58,237,0.40)',
+                  background: loading ? 'rgba(124,58,237,0.5)' : 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 45%, #C2410C 100%)',
+                  boxShadow: loading ? 'none' : '0 8px 28px rgba(124,58,237,0.38), 0 2px 8px rgba(0,0,0,0.08)',
                 }}
               >
                 {loading ? 'Resetting…' : 'Reset password'}
@@ -428,7 +490,7 @@ export default function RequestResetPage() {
                 <button
                   type="button"
                   onClick={() => { setStep('email'); setError(''); setStatus(''); setResetToken(''); setNewPassword(''); setConfirmPassword(''); }}
-                  className="text-sm font-semibold transition hover:opacity-80"
+                  className="text-sm font-semibold transition-opacity hover:opacity-75"
                   style={{ color: '#F59E0B' }}
                 >
                   ← Back to email step
@@ -437,13 +499,13 @@ export default function RequestResetPage() {
             </form>
           )}
 
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1" style={{ background: 'rgba(124,58,237,0.2)' }} />
-            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#4A3F6B' }}>FooDeeZ</span>
-            <div className="h-px flex-1" style={{ background: 'rgba(124,58,237,0.2)' }} />
+          <div className="my-7 flex items-center gap-3">
+            <div className="h-px flex-1" style={{ background: '#EDE9FE' }} />
+            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#C4B5FD' }}>FooDeeZ</span>
+            <div className="h-px flex-1" style={{ background: '#EDE9FE' }} />
           </div>
 
-          <p className="text-center text-xs" style={{ color: '#3D3160' }}>
+          <p className="text-center text-xs" style={{ color: '#9CA3AF' }}>
             © {new Date().getFullYear()} FooDeeZ · All rights reserved.
           </p>
         </div>
