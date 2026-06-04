@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearToken, getUserRole, getUserEmail, getUserDisplayName, getUserRestaurantId } from '../../lib/auth';
+import { authApi } from '../../lib/api';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -327,6 +328,13 @@ export default function SideBar({ mobileOpen = false, onClose }: SideBarProps) {
     setEmail(getUserEmail());
     setDisplayName(getUserDisplayName());
     setRestaurantId(getUserRestaurantId());
+    // Fetch actual user name from API if JWT doesn't carry it
+    authApi.me().then((res) => {
+      const data = res.data;
+      if (data?.displayName) setDisplayName(data.displayName);
+      else if (data?.name) setDisplayName(data.name);
+      if (data?.email) setEmail(data.email);
+    }).catch(() => {});
   }, [pathname]);
 
   const roleLabel = ROLE_LABELS[userRole ?? 'super_admin'] ?? 'Admin';

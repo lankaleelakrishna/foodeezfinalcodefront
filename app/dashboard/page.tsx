@@ -99,61 +99,96 @@ function StatCard({
   icon: React.ReactNode;
   href?: string; onClick?: () => void; selected?: boolean;
 }) {
+  const [hovered, setHovered] = useState(false);
+  const active = hovered || selected;
+
   const card = (
     <div
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
       className={[
-        'group flex flex-col gap-4 rounded-2xl border p-5 transition-all duration-200',
-        onClick ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50' : '',
-        selected
-          ? 'border-[var(--accent)]/50 shadow-[0_0_0_3px_var(--accent-muted)]'
-          : 'border-[var(--border)] hover:border-[var(--accent)]/40',
-        'hover:-translate-y-0.5',
+        'relative flex flex-col gap-4 rounded-2xl border p-5 overflow-hidden',
+        'transition-all duration-300 ease-out',
+        onClick ? 'cursor-pointer focus:outline-none' : '',
       ].filter(Boolean).join(' ')}
       style={{
-        background: gold
+        background: active
+          ? 'linear-gradient(145deg, color-mix(in srgb, var(--accent) 6%, var(--surface)) 0%, var(--surface) 100%)'
+          : gold
           ? 'linear-gradient(145deg, var(--surface) 0%, var(--surface-2) 100%)'
           : 'var(--surface)',
-        boxShadow: gold ? 'var(--gold-glow)' : 'var(--shadow-card)',
+        borderColor: active ? 'var(--accent)' : selected ? 'var(--accent)' : 'var(--border)',
+        boxShadow: active
+          ? '0 0 0 2px var(--accent-muted), 0 8px 32px var(--accent-glow), 0 2px 8px rgba(0,0,0,0.08)'
+          : gold ? 'var(--gold-glow)' : 'var(--shadow-card)',
+        transform: active ? 'translateY(-4px) scale(1.01)' : 'translateY(0) scale(1)',
       }}
     >
+      {/* Purple radial glow overlay on hover */}
+      <div
+        className="pointer-events-none absolute -top-6 -left-6 h-24 w-24 rounded-full transition-opacity duration-300"
+        style={{
+          background: 'radial-gradient(circle, var(--accent-glow) 0%, transparent 70%)',
+          opacity: active ? 1 : 0,
+        }}
+      />
+
       {/* Icon */}
       <div
-        className="flex h-10 w-10 items-center justify-center rounded-xl"
-        style={
-          gold
-            ? { background: 'var(--accent-muted)', color: 'var(--accent)' }
-            : { background: 'var(--surface-2)', color: 'var(--tx-3)' }
-        }
+        className="flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-300"
+        style={{
+          background: active ? 'var(--accent)' : gold ? 'var(--accent-muted)' : 'var(--surface-2)',
+          color: active ? '#fff' : gold ? 'var(--accent)' : 'var(--tx-3)',
+          boxShadow: active ? '0 4px 12px var(--accent-glow)' : 'none',
+          transform: active ? 'scale(1.08)' : 'scale(1)',
+        }}
       >
         {icon}
       </div>
 
       {/* Text */}
       <div className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--tx-3)' }}>
+        <p
+          className="text-[10px] font-bold uppercase tracking-[0.18em] transition-colors duration-300"
+          style={{ color: active ? 'var(--accent)' : 'var(--tx-3)' }}
+        >
           {label}
         </p>
-        {/* Thin separator */}
-        <div className="h-px w-8" style={{ background: gold ? 'var(--accent)' : 'var(--border)' }} />
+        {/* Separator — grows and turns accent on hover */}
+        <div
+          className="h-px transition-all duration-300"
+          style={{
+            width: active ? '3rem' : '2rem',
+            background: active
+              ? 'linear-gradient(90deg, var(--accent), var(--accent-bright))'
+              : gold ? 'var(--accent)' : 'var(--border)',
+          }}
+        />
         <p className="pt-1 font-display text-4xl font-extrabold leading-none tracking-tight" style={{ color: 'var(--tx)' }}>
           <AnimatedNumber value={value} />
         </p>
         {sub && (
-          <p className="pt-1 text-[11px] leading-snug" style={{ color: 'var(--tx-3)' }}>{sub}</p>
+          <p
+            className="pt-1 text-[11px] leading-snug transition-colors duration-300"
+            style={{ color: active ? 'var(--accent-light)' : 'var(--tx-3)' }}
+          >
+            {sub}
+          </p>
         )}
       </div>
 
-      {/* Bottom accent line for gold cards */}
-      {gold && (
-        <div
-          className="absolute inset-x-0 bottom-0 h-[2px] rounded-b-2xl"
-          style={{ background: 'linear-gradient(90deg, var(--accent), var(--accent-bright), transparent)' }}
-        />
-      )}
+      {/* Bottom shimmer line — always for gold, appears on hover for others */}
+      <div
+        className="absolute inset-x-0 bottom-0 h-[2px] rounded-b-2xl transition-opacity duration-300"
+        style={{
+          background: 'linear-gradient(90deg, var(--accent), var(--accent-bright), transparent)',
+          opacity: active || gold ? 1 : 0,
+        }}
+      />
     </div>
   );
 

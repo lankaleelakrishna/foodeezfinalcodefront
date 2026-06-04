@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../../lib/api';
 import { getUserRole } from '../../../lib/auth';
@@ -67,26 +67,38 @@ function validate(form: FormFields): FormErrors {
   if (!form.zipCode.trim()) errors.zipCode = 'Required.';
   else if (!/^\d{6}$/.test(form.zipCode)) errors.zipCode = 'Must be exactly 6 digits.';
 
-  if (form.gstNumber && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(form.gstNumber))
+
+  if (form.gstPresent === 'yes') {
+    if (!form.gstNumber.trim()) errors.gstNumber = 'Required.';
+    else if (!/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(form.gstNumber))
+      errors.gstNumber = 'Invalid GSTIN format.';
+    if (!form.gstExpiryDate) errors.gstExpiryDate = 'Required.';
+  } else if (form.gstPresent !== 'yes' && form.gstNumber && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(form.gstNumber)) {
     errors.gstNumber = 'Invalid GSTIN format.';
+  }
 
-  if (form.fssaiNumber && !/^\d{14}$/.test(form.fssaiNumber))
-    errors.fssaiNumber = 'Must be exactly 14 digits.';
+  if (!form.fssaiNumber.trim()) errors.fssaiNumber = 'Required.';
+  else if (!/^\d{14}$/.test(form.fssaiNumber)) errors.fssaiNumber = 'Must be exactly 14 digits.';
 
-  if (form.bankAccountNumber && !/^\d{9,18}$/.test(form.bankAccountNumber))
-    errors.bankAccountNumber = 'Must be 9–18 digits.';
+  if (!form.fssaiExpiryDate) errors.fssaiExpiryDate = 'Required.';
 
-  if (form.bankAccountNumberConfirm && form.bankAccountNumberConfirm !== form.bankAccountNumber)
-    errors.bankAccountNumberConfirm = 'Account numbers do not match.';
+  if (!form.panNumber.trim()) errors.panNumber = 'Required.';
+  else if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(form.panNumber.toUpperCase())) errors.panNumber = 'Invalid PAN format.';
 
-  if (form.accountType && !['SAVINGS', 'CURRENT'].includes(form.accountType))
-    errors.accountType = 'Invalid account type.';
+  if (!form.bankName.trim()) errors.bankName = 'Required.';
+  if (!form.bankAccountHolderName.trim()) errors.bankAccountHolderName = 'Required.';
 
-  if (form.panNumber && !/^[A-Z]{5}\d{4}[A-Z]$/.test(form.panNumber.toUpperCase()))
-    errors.panNumber = 'Invalid PAN format.';
+  if (!form.bankAccountNumber.trim()) errors.bankAccountNumber = 'Required.';
+  else if (!/^\d{9,18}$/.test(form.bankAccountNumber)) errors.bankAccountNumber = 'Must be 9–18 digits.';
 
-  if (form.ifscCode && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.ifscCode))
-    errors.ifscCode = 'Format: 4 letters + 0 + 6 alphanumeric (e.g. SBIN0001234).';
+  if (!form.bankAccountNumberConfirm.trim()) errors.bankAccountNumberConfirm = 'Required.';
+  else if (form.bankAccountNumberConfirm !== form.bankAccountNumber) errors.bankAccountNumberConfirm = 'Account numbers do not match.';
+
+  if (!form.accountType) errors.accountType = 'Required.';
+  else if (!['SAVINGS', 'CURRENT'].includes(form.accountType)) errors.accountType = 'Invalid account type.';
+
+  if (!form.ifscCode.trim()) errors.ifscCode = 'Required.';
+  else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.ifscCode)) errors.ifscCode = 'Format: 4 letters + 0 + 6 alphanumeric (e.g. SBIN0001234).';
 
   if (form.serviceRadiusKm) {
     const r = Number(form.serviceRadiusKm);
@@ -168,6 +180,7 @@ export default function RestaurantRegisterPage() {
   const [panVerifyMessage, setPanVerifyMessage] = useState('');
   const [panVerifiedName, setPanVerifiedName] = useState('');
   const [panDob, setPanDob] = useState('');
+  const [panName, setPanName] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -211,7 +224,7 @@ export default function RestaurantRegisterPage() {
 
       const res = await api.post('/restaurants/verify-pan', {
         pan,
-        name: form.ownerName.trim() || undefined,
+        name: panName.trim() || undefined,
         dateOfBirth: dobFormatted,
       });
       if (res.data?.valid) {
@@ -229,6 +242,35 @@ export default function RestaurantRegisterPage() {
   };
 
   useEffect(() => { getUserRole(); }, []);
+
+  // ── Back-button interception ──────────────────────────────────────────────
+  // When the user moves forward between steps we push a dummy history entry so
+  // the browser back button pops it rather than leaving the page entirely.
+  const isPoppingRef = useRef(false);
+
+  useEffect(() => {
+    if (step > 1 && !isPoppingRef.current) {
+      window.history.pushState({ regStep: step }, '');
+    }
+    isPoppingRef.current = false;
+  }, [step]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (step === 3) {
+        isPoppingRef.current = true;
+        setStep(2);
+        setServerError('');
+      } else if (step === 2) {
+        isPoppingRef.current = true;
+        setStep(1);
+        setServerError('');
+      }
+      // step === 1: no history entry was pushed, so the browser navigates normally
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [step]);
 
   const handleAutoCapture = () => {
     if (!navigator.geolocation) {
@@ -298,6 +340,22 @@ export default function RestaurantRegisterPage() {
       setServerError('Please fix the highlighted fields before proceeding to the next step.');
       return;
     }
+    if (form.gstPresent === 'yes' && !gstFile) {
+      setServerError('GST document upload is required when GST is available. Please upload the GST document.');
+      return;
+    }
+    if (!panFile) {
+      setServerError('PAN card upload is required. Please upload the PAN card document.');
+      return;
+    }
+    if (!fssaiFile) {
+      setServerError('FSSAI document upload is required. Please upload the FSSAI document.');
+      return;
+    }
+    if (!bankFile) {
+      setServerError('Bank document upload is required. Please upload the bank document.');
+      return;
+    }
     setStep(3);
   };
 
@@ -343,6 +401,29 @@ export default function RestaurantRegisterPage() {
 
     if (!reviewConfirmed) {
       setServerError('Please confirm that you have reviewed all details before submitting.');
+      return;
+    }
+
+    if (form.gstPresent === 'yes' && !gstFile) {
+      setServerError('GST document upload is required. Please go back to step 2 and upload the GST document.');
+      return;
+    }
+    if (!panFile) {
+      setServerError('PAN card upload is required. Please go back to step 2 and upload the PAN card.');
+      return;
+    }
+    if (!fssaiFile) {
+      setServerError('FSSAI document upload is required. Please go back to step 2 and upload the FSSAI document.');
+      return;
+    }
+    if (!bankFile) {
+      setServerError('Bank document upload is required. Please go back to step 2 and upload the bank document.');
+      return;
+    }
+
+    const hasMenuItems = menuExtracted && menuExtracted.length > 0 && menuExtracted.some(c => c.items.length > 0);
+    if (!hasMenuItems) {
+      setServerError('Menu is required. Please upload and extract a menu file or add items manually before submitting.');
       return;
     }
 
@@ -528,226 +609,6 @@ export default function RestaurantRegisterPage() {
     set(field, cleaned);
   };
 
-  // Compact ScanPanel used in registration step 3. Allows selecting an image, scanning (server if available),
-  // previewing extracted categories and attaching them to the registration payload.
-  function ScanPanel({
-    menuFile, menuPreview, menuScanStatus, menuScanError, onFile, onScan, onAttach,
-  }: {
-    menuFile: File | null; menuPreview: string | null; menuScanStatus: 'idle' | 'scanning'; menuScanError: string;
-    onFile: (f: File | null) => void; onScan: () => void; onAttach: (cats: ScanCategory[] | null) => void;
-  }) {
-    return (
-      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-[var(--tx)]">Upload menu file</h2>
-            <p className="mt-1 text-sm text-[var(--tx-3)]">Upload an image, PDF (multi-page) or Excel/CSV to extract menu items automatically.</p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button
-              type="button"
-              onClick={onScan}
-              disabled={!menuFile || menuScanStatus === 'scanning'}
-              className="rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white transition hover:bg-[var(--accent-2)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {menuScanStatus === 'scanning' ? 'Extracting…' : 'Extract menu'}
-            </button>
-            <span className="text-xs text-[var(--tx-3)]">Image · PDF · Excel · CSV · max 25 MB</span>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px] items-start">
-          <label className="block rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm text-[var(--tx-2)] transition hover:border-[var(--accent)]">
-            <span className="font-medium">{menuFile ? menuFile.name : 'Choose menu file'}</span>
-            <input
-              type="file"
-              accept={MENU_SCAN_ACCEPT}
-              onChange={(e) => onFile(e.target.files ? e.target.files[0] : null)}
-              className="mt-3 block w-full cursor-pointer text-sm text-[var(--tx-3)]"
-            />
-          </label>
-          {menuPreview && (
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
-              {menuPreview ? (
-                <>
-                  <p className="mb-2 text-sm font-medium text-[var(--tx-2)]">Preview</p>
-                  <img src={menuPreview} alt="menu preview" className="h-40 w-full rounded-2xl object-contain" />
-                </>
-              ) : menuFile ? (
-                <div className="flex h-40 flex-col items-center justify-center gap-2 text-[var(--tx-3)]">
-                  <svg viewBox="0 0 24 24" className="h-10 w-10 text-[var(--accent)]" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                  </svg>
-                  <p className="text-xs font-medium text-[var(--tx-2)]">{menuFile.name}</p>
-                  <p className="text-xs text-[var(--tx-3)]">{(menuFile.size / 1024).toFixed(0)} KB</p>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
-
-        {menuScanError && <p className="mt-3 text-sm text-rose-600">{menuScanError}</p>}
-
-        <div className="mt-4 space-y-4">
-          <Field label="Referral name" hint="Optional">
-            <input value={form.leadSource} onChange={(e) => set('leadSource', e.target.value)} className={OK} />
-          </Field>
-
-          <Field label="Brand description" hint={`Optional · up to ${BRAND_DESC_MAX} chars`}>
-            <textarea value={form.brandDescription} onChange={(e) => set('brandDescription', e.target.value)} className={OK} maxLength={BRAND_DESC_MAX} rows={3} />
-            <p className="mt-1 text-xs text-[var(--tx-3)]">{(form.brandDescription || '').length}/{BRAND_DESC_MAX}</p>
-          </Field>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Cuisine tags" hint="Comma-separated (e.g. North Indian, Chinese)">
-              <input value={form.cuisineTags} onChange={(e) => set('cuisineTags', e.target.value)} className={OK} />
-            </Field>
-            <Field label="Service radius (km)" hint="Optional">
-              <input value={form.serviceRadiusKm} onChange={(e) => set('serviceRadiusKm', e.target.value)} className={OK} type="number" step="0.1" min="0" onKeyDown={blockNumberExtras} />
-            </Field>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-[var(--tx-2)] mb-2">Temporary closure</label>
-              <div className="flex items-center gap-3">
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={form.temporaryClosure === 'true'}
-                    onChange={(e) => set('temporaryClosure', e.target.checked ? 'true' : 'false')}
-                    className="peer sr-only"
-                  />
-                  <span className="block h-6 w-12 rounded-full border-4 border-[var(--border)] bg-[var(--surface)] transition-colors duration-200 peer-checked:bg-[var(--accent)]" />
-                  <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-all duration-200 peer-checked:translate-x-6 peer-checked:shadow-lg peer-checked:shadow-[var(--accent)]/50" />
-                </label>
-                <span className={`text-sm font-semibold ${form.temporaryClosure === 'true' ? 'text-[var(--accent)]' : 'text-[var(--tx-2)]'}`}>
-                  {form.temporaryClosure === 'true' ? 'ON' : 'OFF'}
-                </span>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--tx-2)] mb-2">Holiday mode</label>
-              <div className="flex items-center gap-3">
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={form.holidayMode === 'true'}
-                    onChange={(e) => set('holidayMode', e.target.checked ? 'true' : 'false')}
-                    className="peer sr-only"
-                  />
-                  <span className="block h-6 w-12 rounded-full border-4 border-[var(--border)] bg-[var(--surface)] transition-colors duration-200 peer-checked:bg-[var(--accent)]" />
-                  <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-all duration-200 peer-checked:translate-x-6 peer-checked:shadow-lg peer-checked:shadow-[var(--accent)]/50" />
-                </label>
-                <span className={`text-sm font-semibold ${form.holidayMode === 'true' ? 'text-[var(--accent)]' : 'text-[var(--tx-2)]'}`}>
-                  {form.holidayMode === 'true' ? 'ON' : 'OFF'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {menuExtracted && (
-          <div className="mt-4 space-y-4">
-            <p className="text-sm font-semibold">Extracted menu preview</p>
-            {menuExtracted.map((category, ci) => (
-              <div key={ci} className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold text-[var(--tx)]">{category.displayName || category.name}</p>
-                    {category.name && <p className="text-xs text-[var(--tx-3)]">Category slug: {category.name}</p>}
-                  </div>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {category.items.map((item, ii) => {
-                    const isEditing = editingItem?.ci === ci && editingItem?.ii === ii;
-                    return (
-                      <div key={ii} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="font-semibold text-[var(--tx)]">{item.name || 'Unnamed item'}</p>
-                            {item.description && <p className="text-sm text-[var(--tx-2)]">{item.description}</p>}
-                          </div>
-                          {isEditing ? (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editingPrice}
-                                autoFocus
-                                onChange={(e) => setEditingPrice(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') { e.preventDefault(); commitPriceEdit(); }
-                                  if (e.key === 'Escape') setEditingItem(null);
-                                }}
-                                onBlur={commitPriceEdit}
-                                className="w-24 rounded-lg border border-[var(--accent)] bg-[var(--surface)] px-2 py-1 text-sm font-semibold text-[var(--tx)] outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                              />
-                              <span className="text-xs text-[var(--tx-3)]">{item.currency}</span>
-                              <button
-                                type="button"
-                                onMouseDown={(e) => { e.preventDefault(); commitPriceEdit(); }}
-                                className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
-                                title="Confirm"
-                              >
-                                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M2.5 8l4 4 7-7" />
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                onMouseDown={(e) => { e.preventDefault(); setEditingItem(null); }}
-                                className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-3)] hover:bg-[var(--surface-2)]"
-                                title="Cancel"
-                              >
-                                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
-                                  <path d="M4 4l8 8M12 4l-8 8" />
-                                </svg>
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <p className="text-sm font-semibold text-[var(--tx)]">{item.price} {item.currency}</p>
-                              <button
-                                type="button"
-                                onClick={() => { setEditingItem({ ci, ii }); setEditingPrice(item.price); }}
-                                className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-3)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                                title="Edit price"
-                              >
-                                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M11.5 2.5a1.414 1.414 0 012 2L5 13H3v-2L11.5 2.5z" />
-                                </svg>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5 text-sm text-[var(--tx-2)]">
-          <p className="font-semibold">Review details before registering</p>
-          <ul className="mt-3 space-y-2">
-            <li><strong>Restaurant:</strong> {form.name}</li>
-            <li><strong>Owner:</strong> {form.ownerName}</li>
-            <li><strong>Email:</strong> {form.email}</li>
-            <li><strong>Phone:</strong> {form.phone}</li>
-            <li><strong>FSSAI:</strong> {form.fssaiNumber || 'N/A'}</li>
-            <li><strong>GST present:</strong> {form.gstPresent === 'yes' ? 'Yes' : 'No'}</li>
-            <li><strong>Bank:</strong> {form.bankName || 'N/A'}</li>
-            <li><strong>Menu image:</strong> {menuFile?.name || 'None selected'}</li>
-          </ul>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <AuthGuard requiredRoles={['super_admin', 'sales_operator']}>
       <div className="flex justify-center">
@@ -791,11 +652,11 @@ export default function RestaurantRegisterPage() {
             {step === 1 && (
               <>
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <Field label="Restaurant name" required error={errors.name} hint="As per FSSAI">
-                    <input {...p('name')} maxLength={100} autoComplete="organization" />
-                  </Field>
-                  <Field label="Legal entity name" required error={errors.legalEntityName}>
+                  <Field label="Legal entity name" required error={errors.legalEntityName} hint="As per FSSAI">
                     <input {...p('legalEntityName')} maxLength={100} autoComplete="organization" />
+                  </Field>
+                  <Field label="Restaurant name" required error={errors.name}>
+                    <input {...p('name')} maxLength={100} autoComplete="organization" />
                   </Field>
                   <Field label="Owner name" required error={errors.ownerName}>
                     <input
@@ -962,7 +823,7 @@ export default function RestaurantRegisterPage() {
 
                   {form.gstPresent === 'yes' && (
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="GSTIN" error={errors.gstNumber} hint="optional · 15 chars">
+                      <Field label="GSTIN" required error={errors.gstNumber} hint="15 chars">
                         <input
                           {...p('gstNumber')}
                           maxLength={15}
@@ -970,14 +831,14 @@ export default function RestaurantRegisterPage() {
                           onChange={(e) => set('gstNumber', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15))}
                         />
                       </Field>
-                      <Field label="GST Expiry Date" error={errors.gstExpiryDate} hint="optional">
+                      <Field label="GST Expiry Date" required error={errors.gstExpiryDate}>
                         <input type="date" {...p('gstExpiryDate')} />
                       </Field>
                     </div>
                   )}
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="FSSAI number" error={errors.fssaiNumber} hint="optional · 14 digits">
+                    <Field label="FSSAI number" required error={errors.fssaiNumber} hint="14 digits">
                       <input
                         {...p('fssaiNumber')}
                         type="tel"
@@ -989,12 +850,12 @@ export default function RestaurantRegisterPage() {
                         onChange={(e) => set('fssaiNumber', e.target.value.replace(/\D/g, '').slice(0, 14))}
                       />
                     </Field>
-                    <Field label="FSSAI Expiry Date" error={errors.fssaiExpiryDate} hint="optional">
+                    <Field label="FSSAI Expiry Date" required error={errors.fssaiExpiryDate}>
                       <input type="date" {...p('fssaiExpiryDate')} />
                     </Field>
                   </div>
 
-                  <Field label="PAN number" error={errors.panNumber} hint="10 chars">
+                  <Field label="PAN number" required error={errors.panNumber} hint="10 chars">
                     <input
                       {...p('panNumber')}
                       maxLength={10}
@@ -1010,10 +871,10 @@ export default function RestaurantRegisterPage() {
                         <span className="text-sm font-medium text-[var(--tx-2)]">Name as per PAN</span>
                         <input
                           type="text"
-                          value={form.ownerName}
-                          readOnly
-                          className={`${OK} opacity-70 cursor-not-allowed`}
-                          placeholder="Auto-filled from owner name"
+                          value={panName}
+                          onChange={(e) => setPanName(e.target.value)}
+                          className={OK}
+                          placeholder="Enter name as per PAN"
                         />
                       </label>
                       <label className="block">
@@ -1058,10 +919,10 @@ export default function RestaurantRegisterPage() {
 
                   {/* Row 1: Bank name · Account type · Account holder name */}
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <Field label="Bank name" error={errors.bankName}>
+                    <Field label="Bank name" required error={errors.bankName}>
                       <input {...p('bankName')} maxLength={100} />
                     </Field>
-                    <Field label="Account type" error={errors.accountType}>
+                    <Field label="Account type" required error={errors.accountType}>
                       <select
                         value={form.accountType ?? ''}
                         onChange={(e) => set('accountType', e.target.value)}
@@ -1073,14 +934,14 @@ export default function RestaurantRegisterPage() {
                         <option value="CURRENT">Current</option>
                       </select>
                     </Field>
-                    <Field label="Account holder name" error={errors.bankAccountHolderName}>
+                    <Field label="Account holder name" required error={errors.bankAccountHolderName}>
                       <input {...p('bankAccountHolderName')} maxLength={100} />
                     </Field>
                   </div>
 
                   {/* Row 2: Account number · Confirm · IFSC — each in equal column */}
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <Field label="Account number" error={errors.bankAccountNumber} hint="9–18 digits">
+                    <Field label="Account number" required error={errors.bankAccountNumber} hint="9–18 digits">
                       <input
                         {...p('bankAccountNumber')}
                         type="tel"
@@ -1091,7 +952,7 @@ export default function RestaurantRegisterPage() {
                         onChange={(e) => set('bankAccountNumber', e.target.value.replace(/\D/g, '').slice(0, 18))}
                       />
                     </Field>
-                    <Field label="Confirm account no." error={errors.bankAccountNumberConfirm} hint="Re-enter">
+                    <Field label="Confirm account no." required error={errors.bankAccountNumberConfirm} hint="Re-enter">
                       <input
                         {...p('bankAccountNumberConfirm')}
                         type="tel"
@@ -1102,7 +963,7 @@ export default function RestaurantRegisterPage() {
                         onChange={(e) => set('bankAccountNumberConfirm', e.target.value.replace(/\D/g, '').slice(0, 18))}
                       />
                     </Field>
-                    <Field label="IFSC code" error={errors.ifscCode} hint="11 chars">
+                    <Field label="IFSC code" required error={errors.ifscCode} hint="11 chars">
                       <input
                         {...p('ifscCode')}
                         maxLength={11}
@@ -1117,61 +978,64 @@ export default function RestaurantRegisterPage() {
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5 space-y-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-[var(--tx-3)]">Document Uploads</p>
-                    <p className="mt-1 text-xs text-[var(--tx-3)]">All optional · PDF, JPG, PNG accepted</p>
+                    <p className="mt-1 text-xs text-[var(--tx-3)]">PDF, JPG, PNG accepted · All required</p>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Upload PAN card" hint="optional">
+                    <Field label="Upload PAN card" required>
                       <input
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png"
                         onChange={(e) => setPanFile(e.target.files ? e.target.files[0] : null)}
-                        className={FILE}
+                        className={!panFile ? `${FILE} border-rose-500` : FILE}
                       />
-                      {panFile && <p className="mt-1 text-xs text-[var(--tx-3)]">Selected: {panFile.name}</p>}
+                      {panFile
+                        ? <p className="mt-1 text-xs text-[var(--tx-3)]">Selected: {panFile.name}</p>
+                        : <p className="mt-1 text-xs text-rose-500">PAN card document is required.</p>
+                      }
                     </Field>
 
-                    <Field label="Upload GST document" hint={form.gstPresent !== 'yes' ? 'Set GST = Yes first' : 'optional'}>
+                    <Field label="Upload GST document" required={form.gstPresent === 'yes'} hint={form.gstPresent !== 'yes' ? 'Set GST = Yes first' : 'PDF, JPG, PNG'}>
                       <input
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png"
                         onChange={(e) => setGstFile(e.target.files ? e.target.files[0] : null)}
-                        className={FILE}
+                        className={form.gstPresent === 'yes' && !gstFile ? `${FILE} border-rose-500` : FILE}
                         disabled={form.gstPresent !== 'yes'}
                       />
                       {form.gstPresent !== 'yes'
                         ? <p className="mt-1 text-xs text-[var(--tx-3)]">Enable GST availability above first.</p>
-                        : gstFile && <p className="mt-1 text-xs text-[var(--tx-3)]">Selected: {gstFile.name}</p>
+                        : gstFile
+                          ? <p className="mt-1 text-xs text-[var(--tx-3)]">Selected: {gstFile.name}</p>
+                          : <p className="mt-1 text-xs text-rose-500">GST document is required.</p>
                       }
                     </Field>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Upload FSSAI document" hint="After entering FSSAI number">
+                    <Field label="Upload FSSAI document" required>
                       <input
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png"
                         onChange={(e) => setFssaiFile(e.target.files ? e.target.files[0] : null)}
-                        className={FILE}
-                        disabled={!(form.fssaiNumber && /^\d{14}$/.test(form.fssaiNumber))}
+                        className={!fssaiFile ? `${FILE} border-rose-500` : FILE}
                       />
-                      {!form.fssaiNumber || !/^\d{14}$/.test(form.fssaiNumber)
-                        ? <p className="mt-1 text-xs text-[var(--tx-3)]">Enter a valid 14-digit FSSAI to enable.</p>
-                        : fssaiFile && <p className="mt-1 text-xs text-[var(--tx-3)]">Selected: {fssaiFile.name}</p>
+                      {fssaiFile
+                        ? <p className="mt-1 text-xs text-[var(--tx-3)]">Selected: {fssaiFile.name}</p>
+                        : <p className="mt-1 text-xs text-rose-500">FSSAI document is required.</p>
                       }
                     </Field>
 
-                    <Field label="Upload Bank document" hint="After filling bank details">
+                    <Field label="Upload Bank document" required>
                       <input
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png"
                         onChange={(e) => setBankFile(e.target.files ? e.target.files[0] : null)}
-                        className={FILE}
-                        disabled={!(form.bankName && form.bankAccountNumber && form.ifscCode)}
+                        className={!bankFile ? `${FILE} border-rose-500` : FILE}
                       />
-                      {!(form.bankName && form.bankAccountNumber && form.ifscCode)
-                        ? <p className="mt-1 text-xs text-[var(--tx-3)]">Fill bank name, account and IFSC to enable.</p>
-                        : bankFile && <p className="mt-1 text-xs text-[var(--tx-3)]">Selected: {bankFile.name}</p>
+                      {bankFile
+                        ? <p className="mt-1 text-xs text-[var(--tx-3)]">Selected: {bankFile.name}</p>
+                        : <p className="mt-1 text-xs text-rose-500">Bank document is required.</p>
                       }
                     </Field>
                   </div>
@@ -1242,20 +1106,159 @@ export default function RestaurantRegisterPage() {
                 </div>
 
                 {menuMode === 'upload' && (
-                  <ScanPanel
-                    menuFile={menuFile}
-                    menuPreview={menuPreview}
-                    menuScanStatus={menuScanStatus}
-                    menuScanError={menuScanError}
-                    onFile={handleMenuFile}
-                    onScan={() => handleMenuScan()}
-                    onAttach={(cats) => setMenuExtracted(cats)}
-                  />
+                  <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-5 shadow-sm">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h2 className="text-lg font-semibold text-[var(--tx)]">Upload menu file <span className="text-rose-500">*</span></h2>
+                        <p className="mt-1 text-sm text-[var(--tx-3)]">Upload an image, PDF (multi-page) or Excel/CSV to extract menu items automatically.</p>
+                        {!menuExtracted || menuExtracted.every(c => c.items.length === 0) ? (
+                          <p className="mt-1 text-xs text-rose-500">Menu is required. Upload a file and click Extract, or switch to Add manually.</p>
+                        ) : (
+                          <p className="mt-1 text-xs text-emerald-600">Menu extracted — {menuExtracted.reduce((n, c) => n + c.items.length, 0)} item(s) ready.</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <button type="button" onClick={() => handleMenuScan()} disabled={!menuFile || menuScanStatus === 'scanning'}
+                          className="rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white transition hover:bg-[var(--accent-2)] disabled:cursor-not-allowed disabled:opacity-60">
+                          {menuScanStatus === 'scanning' ? 'Extracting…' : 'Extract menu'}
+                        </button>
+                        <span className="text-xs text-[var(--tx-3)]">Image · PDF · Excel · CSV · max 25 MB</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px] items-start">
+                      <label className="block rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm text-[var(--tx-2)] transition hover:border-[var(--accent)]">
+                        <span className="font-medium">{menuFile ? menuFile.name : 'Choose menu file'}</span>
+                        <input type="file" accept={MENU_SCAN_ACCEPT}
+                          onChange={(e) => handleMenuFile(e.target.files ? e.target.files[0] : null)}
+                          className="mt-3 block w-full cursor-pointer text-sm text-[var(--tx-3)]" />
+                      </label>
+                      {menuPreview && (
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                          <p className="mb-2 text-sm font-medium text-[var(--tx-2)]">Preview</p>
+                          <img src={menuPreview} alt="menu preview" className="h-40 w-full rounded-2xl object-contain" />
+                        </div>
+                      )}
+                    </div>
+
+                    {menuScanError && <p className="mt-3 text-sm text-rose-600">{menuScanError}</p>}
+
+                    <div className="mt-4 space-y-4">
+                      <Field label="Referral name" hint="Optional">
+                        <input value={form.leadSource} onChange={(e) => set('leadSource', e.target.value)} className={OK} />
+                      </Field>
+                      <Field label="Brand description" hint={`Optional · up to ${BRAND_DESC_MAX} chars`}>
+                        <textarea value={form.brandDescription} onChange={(e) => set('brandDescription', e.target.value)} className={OK} maxLength={BRAND_DESC_MAX} rows={3} />
+                        <p className="mt-1 text-xs text-[var(--tx-3)]">{(form.brandDescription || '').length}/{BRAND_DESC_MAX}</p>
+                      </Field>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <Field label="Cuisine tags" hint="Comma-separated (e.g. North Indian, Chinese)">
+                          <input value={form.cuisineTags} onChange={(e) => set('cuisineTags', e.target.value)} className={OK} />
+                        </Field>
+                        <Field label="Service radius (km)" hint="Optional">
+                          <input value={form.serviceRadiusKm} onChange={(e) => set('serviceRadiusKm', e.target.value)} className={OK} type="number" step="0.1" min="0" onKeyDown={blockNumberExtras} />
+                        </Field>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-sm font-medium text-[var(--tx-2)] mb-2">Temporary closure</label>
+                          <div className="flex items-center gap-3">
+                            <label className="relative inline-flex cursor-pointer items-center">
+                              <input type="checkbox" checked={form.temporaryClosure === 'true'} onChange={(e) => set('temporaryClosure', e.target.checked ? 'true' : 'false')} className="peer sr-only" />
+                              <span className="block h-6 w-12 rounded-full border-4 border-[var(--border)] bg-[var(--surface)] transition-colors duration-200 peer-checked:bg-[var(--accent)]" />
+                              <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-all duration-200 peer-checked:translate-x-6 peer-checked:shadow-lg peer-checked:shadow-[var(--accent)]/50" />
+                            </label>
+                            <span className={`text-sm font-semibold ${form.temporaryClosure === 'true' ? 'text-[var(--accent)]' : 'text-[var(--tx-2)]'}`}>{form.temporaryClosure === 'true' ? 'ON' : 'OFF'}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[var(--tx-2)] mb-2">Holiday mode</label>
+                          <div className="flex items-center gap-3">
+                            <label className="relative inline-flex cursor-pointer items-center">
+                              <input type="checkbox" checked={form.holidayMode === 'true'} onChange={(e) => set('holidayMode', e.target.checked ? 'true' : 'false')} className="peer sr-only" />
+                              <span className="block h-6 w-12 rounded-full border-4 border-[var(--border)] bg-[var(--surface)] transition-colors duration-200 peer-checked:bg-[var(--accent)]" />
+                              <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-all duration-200 peer-checked:translate-x-6 peer-checked:shadow-lg peer-checked:shadow-[var(--accent)]/50" />
+                            </label>
+                            <span className={`text-sm font-semibold ${form.holidayMode === 'true' ? 'text-[var(--accent)]' : 'text-[var(--tx-2)]'}`}>{form.holidayMode === 'true' ? 'ON' : 'OFF'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {menuExtracted && (
+                      <div className="mt-4 space-y-4">
+                        <p className="text-sm font-semibold">Extracted menu preview</p>
+                        {menuExtracted.map((category, ci) => (
+                          <div key={ci} className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
+                            <p className="text-base font-semibold text-[var(--tx)]">{category.displayName || category.name}</p>
+                            {category.name && <p className="text-xs text-[var(--tx-3)]">Category slug: {category.name}</p>}
+                            <div className="mt-4 space-y-3">
+                              {category.items.map((item, ii) => {
+                                const isEditing = editingItem?.ci === ci && editingItem?.ii === ii;
+                                return (
+                                  <div key={ii} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                      <div>
+                                        <p className="font-semibold text-[var(--tx)]">{item.name || 'Unnamed item'}</p>
+                                        {item.description && <p className="text-sm text-[var(--tx-2)]">{item.description}</p>}
+                                      </div>
+                                      {isEditing ? (
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                          <input type="number" min="0" step="0.01" value={editingPrice} autoFocus
+                                            onChange={(e) => setEditingPrice(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitPriceEdit(); } if (e.key === 'Escape') setEditingItem(null); }}
+                                            onBlur={commitPriceEdit}
+                                            className="w-24 rounded-lg border border-[var(--accent)] bg-[var(--surface)] px-2 py-1 text-sm font-semibold text-[var(--tx)] outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                                          <span className="text-xs text-[var(--tx-3)]">{item.currency}</span>
+                                          <button type="button" onMouseDown={(e) => { e.preventDefault(); commitPriceEdit(); }} className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-700" title="Confirm">
+                                            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 8l4 4 7-7" /></svg>
+                                          </button>
+                                          <button type="button" onMouseDown={(e) => { e.preventDefault(); setEditingItem(null); }} className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-3)] hover:bg-[var(--surface-2)]" title="Cancel">
+                                            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                          <p className="text-sm font-semibold text-[var(--tx)]">{item.price} {item.currency}</p>
+                                          <button type="button" onClick={() => { setEditingItem({ ci, ii }); setEditingPrice(item.price); }} className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--tx-3)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]" title="Edit price">
+                                            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M11.5 2.5a1.414 1.414 0 012 2L5 13H3v-2L11.5 2.5z" /></svg>
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5 text-sm text-[var(--tx-2)]">
+                      <p className="font-semibold">Review details before registering</p>
+                      <ul className="mt-3 space-y-2">
+                        <li><strong>Restaurant:</strong> {form.name}</li>
+                        <li><strong>Owner:</strong> {form.ownerName}</li>
+                        <li><strong>Email:</strong> {form.email}</li>
+                        <li><strong>Phone:</strong> {form.phone}</li>
+                        <li><strong>FSSAI:</strong> {form.fssaiNumber || 'N/A'}</li>
+                        <li><strong>GST present:</strong> {form.gstPresent === 'yes' ? 'Yes' : 'No'}</li>
+                        <li><strong>Bank:</strong> {form.bankName || 'N/A'}</li>
+                        <li><strong>Menu image:</strong> {menuFile?.name || 'None selected'}</li>
+                      </ul>
+                    </div>
+                  </div>
                 )}
 
                 {menuMode === 'manual' && (
                   <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-5 space-y-5">
-                    <h2 className="text-lg font-semibold text-[var(--tx)]">Add menu items manually</h2>
+                    <div>
+                      <h2 className="text-lg font-semibold text-[var(--tx)]">Add menu items manually <span className="text-rose-500">*</span></h2>
+                      {(!menuExtracted || menuExtracted.every(c => c.items.length === 0)) && (
+                        <p className="mt-1 text-xs text-rose-500">At least one menu item is required before submitting.</p>
+                      )}
+                    </div>
 
                     {/* Existing categories */}
                     {(menuExtracted ?? []).map((cat, ci) => (

@@ -1223,19 +1223,33 @@ export default function BranchMenuPage() {
                                               >
                                                 {editingItemId === item.id ? 'Close' : 'Edit'}
                                               </button>
+                                              {/* In Stock toggle */}
                                               <button
                                                 type="button"
                                                 onClick={() => toggleItemState(item, 'isInStock')}
-                                                className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 transition"
+                                                title={item.isInStock ? 'Mark out of stock' : 'Mark in stock'}
+                                                className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 transition hover:border-[var(--accent)]"
                                               >
-                                                {item.isInStock ? 'Out of stock' : 'Restock'}
+                                                <span className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors duration-200 ${item.isInStock ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                                  <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 absolute top-0.5 ${item.isInStock ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                                                </span>
+                                                <span className={`text-xs font-medium ${item.isInStock ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                                  {item.isInStock ? 'In stock' : 'Out of stock'}
+                                                </span>
                                               </button>
+                                              {/* Visible toggle */}
                                               <button
                                                 type="button"
                                                 onClick={() => toggleItemState(item, 'isVisible')}
-                                                className="rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 transition"
+                                                title={item.isVisible ? 'Hide item' : 'Show item'}
+                                                className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 transition hover:border-[var(--accent)]"
                                               >
-                                                {item.isVisible ? 'Hide' : 'Show'}
+                                                <span className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors duration-200 ${item.isVisible ? 'bg-[var(--accent)]' : 'bg-slate-300'}`}>
+                                                  <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 absolute top-0.5 ${item.isVisible ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                                                </span>
+                                                <span className={`text-xs font-medium ${item.isVisible ? 'text-[var(--accent)]' : 'text-slate-500'}`}>
+                                                  {item.isVisible ? 'Visible' : 'Hidden'}
+                                                </span>
                                               </button>
                                             </>
                                           )}

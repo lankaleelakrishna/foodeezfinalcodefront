@@ -42,7 +42,10 @@ export function getUserEmail() {
   const token = getToken();
   if (!token) return null;
   const payload = parseJwtPayload(token);
-  return payload?.email ?? payload?.sub ?? null;
+  const email = payload?.email ?? null;
+  // Ignore UUID-style values (sub) — those are internal IDs, not display emails
+  if (!email || /^[0-9a-f-]{36}$/i.test(email)) return null;
+  return email;
 }
 
 export function getUserDisplayName() {

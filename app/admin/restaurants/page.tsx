@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AuthGuard from '../../components/AuthGuard';
-import { restaurantsApi, api } from '../../../lib/api';
+import { restaurantsApi, documentsApi, api } from '../../../lib/api';
 
 type MenuItem = { name: string; description?: string; price: string | number; currency: string };
 type MenuCategory = { name: string; displayName: string; items: MenuItem[] };
@@ -24,7 +24,7 @@ type Restaurant = {
   menuExtractedJson?: string;
 };
 
-type Document = { id: string; type: string; filename: string; status: string; uploadedAt: string };
+type Document = { id: string; type: string; filename: string; status: string; uploadedAt: string; previewUrl?: string; downloadUrl?: string; s3Key?: string };
 
 type ChangeRequest = {
   id: string;
@@ -81,6 +81,84 @@ export default function AdminRestaurantsPage() {
   const [crAction, setCrAction] = useState<{ id: string; type: 'approve' | 'reject' } | null>(null);
   const [crComment, setCrComment] = useState('');
   const [crActionLoading, setCrActionLoading] = useState(false);
+  const [docVerifyLoading, setDocVerifyLoading] = useState<string | null>(null);
+  const [docRejectModal, setDocRejectModal] = useState<Document | null>(null);
+  const [docRejectReason, setDocRejectReason] = useState('');
+  const [docRejectLoading, setDocRejectLoading] = useState(false);
+  const [docPreview, setDocPreview] = useState<{ url: string; filename: string; isPdf: boolean } | null>(null);
+  const [docPreviewLoading, setDocPreviewLoading] = useState<string | null>(null);
+  const [docPreviewError, setDocPreviewError] = useState<string | null>(null);
+
+  const openDocument = async (doc: Document) => {
+    setDocPreviewLoading(doc.id);
+    setDocPreviewError(null);
+    setError('');
+    try {
+      const adminPath = `/admin/documents/${doc.id}/preview`;
+      // Fetch as blob so we can inspect what the server returned
+      const res = await api.get(adminPath, { responseType: 'blob' });
+      const blob: Blob = res.data;
+      const isPdf = blob.type === 'application/pdf' || doc.filename.toLowerCase().endsWith('.pdf');
+
+      // If the server returned JSON (e.g. { url: "https://s3.signed..." }), extract the URL
+      if (blob.type.includes('json') || blob.type.includes('text')) {
+        const text = await blob.text();
+        try {
+          const json = JSON.parse(text);
+          const signedUrl: string | undefined =
+            json.url ?? json.signedUrl ?? json.previewUrl ?? json.downloadUrl;
+          if (signedUrl) {
+            setDocPreview({ url: signedUrl, filename: doc.filename, isPdf });
+            return;
+          }
+        } catch { /* not JSON, fall through */ }
+      }
+
+      // Binary content (image / PDF bytes) — create an object URL
+      const blobUrl = URL.createObjectURL(blob);
+      setDocPreview({ url: blobUrl, filename: doc.filename, isPdf });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Could not load document preview.';
+      setDocPreviewError(typeof msg === 'string' ? msg : 'Could not load document preview.');
+    } finally {
+      setDocPreviewLoading(null);
+    }
+  };
+
+  const closeDocPreview = () => {
+    if (docPreview) URL.revokeObjectURL(docPreview.url);
+    setDocPreview(null);
+  };
+
+  const handleDocVerify = async (doc: Document) => {
+    if (!selectedRestaurant) return;
+    setDocVerifyLoading(doc.id);
+    try {
+      await documentsApi.updateStatus(selectedRestaurant.id, doc.id, 'verified');
+      await fetchDocuments(selectedRestaurant.id);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to verify document.';
+      alert(Array.isArray(msg) ? msg.join(' ') : msg);
+    } finally {
+      setDocVerifyLoading(null);
+    }
+  };
+
+  const handleDocReject = async () => {
+    if (!selectedRestaurant || !docRejectModal || !docRejectReason.trim()) return;
+    setDocRejectLoading(true);
+    try {
+      await documentsApi.updateStatus(selectedRestaurant.id, docRejectModal.id, 'rejected', docRejectReason.trim());
+      await fetchDocuments(selectedRestaurant.id);
+      setDocRejectModal(null);
+      setDocRejectReason('');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to reject document.';
+      alert(Array.isArray(msg) ? msg.join(' ') : msg);
+    } finally {
+      setDocRejectLoading(false);
+    }
+  };
 
   const fetchRestaurants = useCallback(async () => {
     setLoading(true);
@@ -241,6 +319,74 @@ export default function AdminRestaurantsPage() {
 
   return (
     <AuthGuard requiredRoles={['super_admin']}>
+      {/* ── Document preview modal ── */}
+      {docPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={closeDocPreview}>
+          {/* Close button — top-right corner, always visible */}
+          <button
+            type="button"
+            onClick={closeDocPreview}
+            className="absolute top-4 right-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white text-black shadow-xl hover:bg-gray-100 transition"
+            title="Close"
+          >
+            <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+
+          {/* Image / PDF — stop click from bubbling to backdrop */}
+          <div className="relative max-h-full max-w-4xl w-full flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <p className="text-xs text-white/60 truncate max-w-full">{docPreview.filename}</p>
+            {docPreview.isPdf ? (
+              <iframe src={docPreview.url} className="h-[80vh] w-full rounded-xl border-0" title={docPreview.filename} />
+            ) : (
+              <img src={docPreview.url} alt={docPreview.filename} className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" />
+            )}
+            <p className="text-xs text-white/40">Click outside the image to close</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject document modal ── */}
+      {docRejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-[var(--surface)] p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-[var(--tx)]">Reject {docRejectModal.type}</h2>
+            <p className="mt-2 text-sm text-[var(--tx-3)] truncate">{docRejectModal.filename}</p>
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-[var(--tx-2)] mb-1">
+                Rejection reason <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                value={docRejectReason}
+                onChange={(e) => setDocRejectReason(e.target.value)}
+                rows={3}
+                placeholder="Explain why this document is being rejected…"
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2.5 text-sm text-[var(--tx)] outline-none resize-none focus:border-rose-500"
+              />
+            </div>
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                disabled={docRejectLoading || !docRejectReason.trim()}
+                onClick={handleDocReject}
+                className="flex-1 rounded-2xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60 transition"
+              >
+                {docRejectLoading ? 'Rejecting…' : 'Reject'}
+              </button>
+              <button
+                type="button"
+                disabled={docRejectLoading}
+                onClick={() => { setDocRejectModal(null); setDocRejectReason(''); }}
+                className="flex-1 rounded-2xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold text-[var(--tx-2)] hover:bg-[var(--surface-2)] transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6 p-6">
         {/* Header */}
         <div className="rounded-3xl bg-[var(--surface)] p-8 shadow-lg">
@@ -401,6 +547,9 @@ export default function AdminRestaurantsPage() {
                       {/* Documents */}
                       <div>
                         <h3 className="text-xs font-semibold uppercase tracking-widest text-[var(--tx-3)] mb-3">Uploaded Documents</h3>
+                        {docPreviewError && (
+                          <p className="mb-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{docPreviewError}</p>
+                        )}
                         {docsLoading ? (
                           <p className="text-sm text-[var(--tx-3)]">Loading documents...</p>
                         ) : documents.length === 0 ? (
@@ -408,16 +557,59 @@ export default function AdminRestaurantsPage() {
                         ) : (
                           <div className="space-y-2">
                             {documents.map((doc) => (
-                              <div key={doc.id} className="flex items-center justify-between rounded-2xl bg-[var(--surface-2)] p-3">
-                                <div>
-                                  <p className="font-medium text-sm text-[var(--tx)]">{doc.type}</p>
-                                  <p className="text-xs text-[var(--tx-3)]">{doc.filename}</p>
+                              <div key={doc.id} className="rounded-2xl bg-[var(--surface-2)] p-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-sm text-[var(--tx)]">{doc.type}</p>
+                                    <p className="text-xs text-[var(--tx-3)] truncate">{doc.filename}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                      doc.status === 'verified' ? 'bg-emerald-100 text-emerald-700' :
+                                      doc.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
+                                      'bg-amber-100 text-amber-700'
+                                    }`}>{doc.status}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => openDocument(doc)}
+                                      disabled={docPreviewLoading === doc.id}
+                                      title="View document"
+                                      className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1.5 text-[var(--tx-3)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition disabled:opacity-50"
+                                    >
+                                      {docPreviewLoading === doc.id ? (
+                                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                          <circle cx="12" cy="12" r="10" strokeOpacity={0.25} />
+                                          <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+                                        </svg>
+                                      ) : (
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                      )}
+                                    </button>
+                                  </div>
                                 </div>
-                                <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                  doc.status === 'verified' ? 'bg-emerald-100 text-emerald-700' :
-                                  doc.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
-                                  'bg-amber-100 text-amber-700'
-                                }`}>{doc.status}</span>
+                                {doc.status === 'uploaded' && (
+                                  <div className="flex gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      disabled={docVerifyLoading === doc.id}
+                                      onClick={() => handleDocVerify(doc)}
+                                      className="flex-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 transition"
+                                    >
+                                      {docVerifyLoading === doc.id ? 'Verifying…' : 'Accept'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={docVerifyLoading === doc.id}
+                                      onClick={() => { setDocRejectModal(doc); setDocRejectReason(''); }}
+                                      className="flex-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60 transition"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

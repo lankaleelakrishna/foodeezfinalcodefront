@@ -392,8 +392,15 @@ export const documentsApi = {
     api.get(`/restaurants/${restaurantId}/documents`),
   upload: (restaurantId: string, data: { type: DocumentType; s3Key: string; filename: string }) =>
     api.post(`/restaurants/${restaurantId}/documents`, data),
-  updateStatus: (restaurantId: string, documentId: string, status: 'verified' | 'rejected') =>
-    api.patch(`/restaurants/${restaurantId}/documents/${documentId}`, { status }),
+  updateStatus: (restaurantId: string, documentId: string, status: 'verified' | 'rejected', reason?: string) =>
+    api.patch(`/restaurants/${restaurantId}/documents/${documentId}`, { status, ...(reason ? { reason } : {}) }),
+  // Admin endpoints
+  listAllForAdmin: () =>
+    api.get('/admin/documents'),
+  listForRestaurantAdmin: (restaurantId: string) =>
+    api.get(`/admin/documents/restaurant/${restaurantId}`),
+  adminPreviewUrl: (documentId: string) =>
+    `${(api.defaults.baseURL ?? '').replace(/\/$/, '')}/admin/documents/${documentId}/preview`,
 };
 
 // ── Customer Auth API ──────────────────────────────────────────────────────────
