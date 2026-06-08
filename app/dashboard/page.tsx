@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
-import { api } from '../../lib/api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, restaurantOrdersApi } from '../../lib/api';
 import { getUserRole, getUserRestaurantId } from '../../lib/auth';
 import AuthGuard from '../components/AuthGuard';
 
@@ -65,6 +65,32 @@ type AdminSummary = {
     leadStatus: string; onboardingStep: number; createdAt: string;
   }>;
 };
+
+type ActiveOrder = {
+  id: string;
+  orderNumber?: string;
+  status: string;
+  amount?: number;
+  grandTotal?: number;
+  customer?: { name?: string };
+  createdAt: string;
+};
+
+const ACTIVE_ORDER_STATUSES = ['PLACED', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'];
+
+const ORDER_STATUS_STYLES: Record<string, { bg: string; color: string; border: string }> = {
+  PLACED:            { bg: 'rgba(245,158,11,0.12)', color: '#d97706',  border: 'rgba(245,158,11,0.35)' },
+  CONFIRMED:         { bg: 'rgba(56,189,248,0.10)', color: '#0284c7',  border: 'rgba(56,189,248,0.30)' },
+  PREPARING:         { bg: 'rgba(139,92,246,0.10)', color: '#7c3aed',  border: 'rgba(139,92,246,0.30)' },
+  READY_FOR_PICKUP:  { bg: 'rgba(16,185,129,0.10)', color: '#059669',  border: 'rgba(16,185,129,0.30)' },
+};
+
+function timeAgo(iso: string) {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
 
 const ROLE_LABELS: Record<string, string> = {
   restaurant_owner: 'Restaurant Owner', restaurant_admin: 'Restaurant Admin',
@@ -264,17 +290,47 @@ export default function DashboardPage() {
   const [error,    setError]    = useState('');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [branchStatusFilter, setBranchStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 
+  const fetchActiveOrders = useCallback(async () => {
+    setOrdersLoading(true);
+    try {
+      const res = await restaurantOrdersApi.list(1, 20, { status: 'PLACED,CONFIRMED,PREPARING,READY_FOR_PICKUP' });
+      const payload = res.data;
+      const raw: ActiveOrder[] = Array.isArray(payload.data) ? payload.data : (Array.isArray(payload) ? payload : []);
+      // keep only the active statuses and sort newest first
+      const active = raw
+        .filter((o) => ACTIVE_ORDER_STATUSES.includes(o.status))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 8);
+      setActiveOrders(active);
+    } catch {
+      // silently ignore — dashboard still works without live orders
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    setUserRole(getUserRole());
+    const role = getUserRole();
+    setUserRole(role);
     getUserRestaurantId();
     api.get('/dashboard')
       .then((r) => setData(r.data))
       .catch(() => setError('Unable to load dashboard data.'))
       .finally(() => setLoading(false));
-  }, []);
+
+    // Only poll orders for restaurant roles
+    const isRestaurantRole = ['restaurant_owner', 'restaurant_admin', 'restaurant_manager', 'restaurant_staff'].includes(role ?? '');
+    if (isRestaurantRole) {
+      fetchActiveOrders();
+      const interval = setInterval(fetchActiveOrders, 30_000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchActiveOrders]);
 
   const isAdmin   = userRole === 'super_admin' || userRole === 'sales_operator';
   const roleLabel = ROLE_LABELS[userRole ?? ''] ?? 'Partner';
@@ -423,16 +479,14 @@ export default function DashboardPage() {
                       Register Restaurant
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </Link>
-                    {review > 0 && (
-                      <Link
-                        href="/admin/restaurants?status=review"
-                        className="flex items-center justify-between rounded-xl border px-4 py-2.5 text-sm font-medium no-underline transition hover:brightness-95"
-                        style={{ borderColor: 'rgba(56,189,248,0.35)', background: 'rgba(56,189,248,0.08)', color: '#0284c7' }}
-                      >
-                        Review Pending ({review})
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                      </Link>
-                    )}
+                    <Link
+                      href="/admin/restaurants?status=review"
+                      className="flex items-center justify-between rounded-xl border px-4 py-2.5 text-sm font-medium no-underline transition hover:brightness-95"
+                      style={{ borderColor: 'rgba(56,189,248,0.35)', background: 'rgba(56,189,248,0.08)', color: '#0284c7' }}
+                    >
+                      Pending Approvals{review > 0 ? ` (${review})` : ''}
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </Link>
                     <Link
                       href="/restaurants"
                       className="flex items-center justify-between rounded-xl border px-4 py-2.5 text-sm font-medium no-underline transition"
@@ -562,6 +616,133 @@ export default function DashboardPage() {
                   selected={branchStatusFilter === 'offline'}
                 />
               </div>
+
+              {/* ── Live Orders ──────────────────────────────────── */}
+              {(() => {
+                const placed = activeOrders.filter((o) => o.status === 'PLACED');
+                const hasUrgent = placed.length > 0;
+                return (
+                  <Card>
+                    {/* Header */}
+                    <div
+                      className="flex items-center justify-between border-b px-5 py-4"
+                      style={{ borderColor: 'var(--border-sub)' }}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {/* Pulsing dot — amber when new PLACED orders, green otherwise */}
+                        <span className="relative flex h-2.5 w-2.5 shrink-0">
+                          <span
+                            className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+                            style={{ background: hasUrgent ? '#f59e0b' : '#10b981' }}
+                          />
+                          <span
+                            className="relative inline-flex h-2.5 w-2.5 rounded-full"
+                            style={{ background: hasUrgent ? '#f59e0b' : '#10b981' }}
+                          />
+                        </span>
+                        <p className="text-sm font-semibold" style={{ color: 'var(--tx)' }}>
+                          Live Orders
+                        </p>
+                        {activeOrders.length > 0 && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                            style={{
+                              background: hasUrgent ? 'rgba(245,158,11,0.15)' : 'var(--accent-muted)',
+                              color: hasUrgent ? '#d97706' : 'var(--accent)',
+                            }}
+                          >
+                            {activeOrders.length} active
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {ordersLoading && (
+                          <span className="text-[11px]" style={{ color: 'var(--tx-3)' }}>Refreshing…</span>
+                        )}
+                        <Link
+                          href="/restaurants/orders"
+                          className="text-xs font-medium no-underline"
+                          style={{ color: 'var(--accent)' }}
+                        >
+                          View all →
+                        </Link>
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    {activeOrders.length === 0 ? (
+                      <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
+                        <svg viewBox="0 0 24 24" className="h-8 w-8 opacity-25" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ color: 'var(--tx-3)' }}>
+                          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                        <p className="text-sm" style={{ color: 'var(--tx-3)' }}>No active orders right now</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y" style={{ borderColor: 'var(--border-sub)' }}>
+                        {activeOrders.map((o) => {
+                          const style = ORDER_STATUS_STYLES[o.status] ?? { bg: 'var(--surface-2)', color: 'var(--tx-3)', border: 'var(--border)' };
+                          const isNew = o.status === 'PLACED';
+                          return (
+                            <Link
+                              key={o.id}
+                              href={`/restaurants/orders/${o.id}`}
+                              className="group flex items-center gap-3 px-5 py-3 no-underline transition"
+                              style={{
+                                background: isNew ? 'rgba(245,158,11,0.04)' : 'transparent',
+                              }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = isNew ? 'rgba(245,158,11,0.04)' : 'transparent'; }}
+                            >
+                              {/* Urgency stripe */}
+                              {isNew && (
+                                <span className="h-8 w-1 shrink-0 rounded-full" style={{ background: '#f59e0b' }} />
+                              )}
+
+                              {/* Order info */}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--tx)' }}>
+                                    {o.orderNumber ? `#${o.orderNumber}` : `#${o.id.slice(-6).toUpperCase()}`}
+                                  </p>
+                                  {isNew && (
+                                    <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide animate-pulse"
+                                      style={{ background: 'rgba(245,158,11,0.2)', color: '#d97706' }}>
+                                      New
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="mt-0.5 text-xs truncate" style={{ color: 'var(--tx-3)' }}>
+                                  {o.customer?.name ?? 'Customer'} · {timeAgo(o.createdAt)}
+                                </p>
+                              </div>
+
+                              {/* Amount */}
+                              <p className="shrink-0 text-sm font-semibold" style={{ color: 'var(--tx)' }}>
+                                ₹{Number(o.amount ?? o.grandTotal ?? 0).toFixed(0)}
+                              </p>
+
+                              {/* Status badge */}
+                              <span
+                                className="shrink-0 rounded-lg border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                                style={{ background: style.bg, color: style.color, borderColor: style.border }}
+                              >
+                                {o.status.replace(/_/g, ' ')}
+                              </span>
+
+                              {/* Arrow */}
+                              <svg className="h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-100"
+                                style={{ color: 'var(--tx-3)' }}
+                                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                <path d="M9 18l6-6-6-6"/>
+                              </svg>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })()}
 
               {/* Onboarding progress + quick actions */}
               <div className="grid gap-4 lg:grid-cols-3">

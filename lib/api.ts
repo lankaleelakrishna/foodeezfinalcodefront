@@ -4,6 +4,15 @@ import { topProgress } from './progress';
 const TOKEN_KEY = 'restaurant_onboarding_token';
 
 const defaultApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/v1';
+const defaultBackendOrigin = defaultApiBaseUrl.replace(/\/api\/v1\/?$/, '');
+
+export const resolveMediaUrl = (mediaPath?: string) => {
+  if (!mediaPath) return undefined;
+  if (/^https?:\/\//i.test(mediaPath) || mediaPath.startsWith('//')) {
+    return mediaPath;
+  }
+  return `${defaultBackendOrigin}${mediaPath.startsWith('/') ? '' : '/'}${mediaPath}`;
+};
 
 export const api = axios.create({
   baseURL: defaultApiBaseUrl,
@@ -721,6 +730,8 @@ export const restaurantOrdersApi = {
     api.get('/restaurant/orders', { params: { page, limit, ...params } }),
   get: (orderId: string) =>
     api.get(`/restaurant/orders/${orderId}`),
+  updateStatus: (orderId: string, status: string, note?: string) =>
+    api.patch(`/restaurant/orders/${orderId}/status`, { status, ...(note ? { note } : {}) }),
 };
 
 // ── Admin Tickets API ──────────────────────────────────────────────────────────

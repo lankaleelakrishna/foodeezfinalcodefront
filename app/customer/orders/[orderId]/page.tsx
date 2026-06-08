@@ -5,6 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { customerOrdersApi } from '../../../../lib/api';
+import { io, Socket } from 'socket.io-client';
+
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+  ? process.env.NEXT_PUBLIC_API_BASE_URL.replace('/api/v1', '')
+  : 'http://localhost:3001';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -158,17 +163,43 @@ export default function OrderDetailPage() {
     load();
   }, [orderId]);
 
-  // Live polling for active orders
+  // Real-time order status via Socket.IO (falls back to polling if socket fails)
   useEffect(() => {
     const ACTIVE = ['PLACED','CONFIRMED','PREPARING','READY','PICKED_UP','ON_THE_WAY'];
     if (!order || !ACTIVE.includes(order.status)) return;
+
+    const socket: Socket = io(`${SOCKET_URL}/delivery-tracking`, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+    });
+
+    socket.on('connect', () => {
+      socket.emit('join-order-room', { orderId });
+    });
+
+    socket.on('order-status-update', (data: { orderId: string; status: string }) => {
+      if (data.orderId === orderId) {
+        setOrder((prev) => prev ? { ...prev, status: data.status } : prev);
+      }
+    });
+
+    socket.on('rider-location-update', () => {
+      // Refresh full order data to get updated delivery partner info
+      customerOrdersApi.get(orderId).then((res) => setOrder(res.data)).catch(() => {});
+    });
+
+    // Fallback polling every 20s in case socket is unavailable
     const interval = setInterval(async () => {
       try {
         const res = await customerOrdersApi.get(orderId);
         setOrder(res.data);
       } catch { /* silent */ }
-    }, 15_000);
-    return () => clearInterval(interval);
+    }, 20_000);
+
+    return () => {
+      socket.disconnect();
+      clearInterval(interval);
+    };
   }, [order?.status, orderId]);
 
   const handleReorder = async () => {

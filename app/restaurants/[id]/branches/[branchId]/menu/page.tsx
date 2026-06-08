@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api, menuApi, MenuPricingRuleType, MenuPricingValueType } from '../../../../../../lib/api';
+import { api, menuApi, resolveMediaUrl, MenuPricingRuleType, MenuPricingValueType } from '../../../../../../lib/api';
 import { getUserRole } from '../../../../../../lib/auth';
 import AuthGuard from '../../../../../components/AuthGuard';
 
@@ -14,6 +14,7 @@ type MenuItem = {
   id: string; name: string; description?: string;
   price: number; currency: string; isVisible: boolean; isInStock: boolean;
   category: Category;
+  imageUrl?: string;
   pricingRules?: PricingRule[];
 };
 
@@ -739,11 +740,17 @@ export default function BranchMenuPage() {
   const [editDiscountEndsAt, setEditDiscountEndsAt] = useState('');
   const [editChangeDescription, setEditChangeDescription] = useState('');
   const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [creatingItem, setCreatingItem] = useState(false);
+  const [showCreateItemConfirm, setShowCreateItemConfirm] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showScanPanel, setShowScanPanel] = useState(false);
+  const [uploadingPhotoItemId, setUploadingPhotoItemId] = useState<string | null>(null);
+  const [photoUploadTargetItemId, setPhotoUploadTargetItemId] = useState<string | null>(null);
+  const [photoUploadSuccessItemId, setPhotoUploadSuccessItemId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [restrictedToggle, setRestrictedToggle] = useState<{ field: string; itemName: string } | null>(null);
   const [menuLoading, setMenuLoading] = useState(true);
@@ -759,11 +766,15 @@ export default function BranchMenuPage() {
         api.get(`/branches/${branchId}/menu-items`),
       ]);
       setCategories(catRes.data);
-      setItems(itemRes.data);
-      if (catRes.data.length && !selectedCategoryId) setSelectedCategoryId(catRes.data[0].id);
-      setError('');
-    } catch {
-      setError('Unable to load menu content.');
+      setItems(Array.isArray(itemRes.data)
+        ? itemRes.data.map((item: any) => ({
+            ...item,
+            imageUrl: item.imageUrl ?? item.image_url,
+          }))
+        : itemRes.data);
+    } catch (err) {
+      console.error(err);
+      setError('Unable to load menu.');
     } finally {
       setMenuLoading(false);
     }
@@ -784,9 +795,20 @@ export default function BranchMenuPage() {
     } catch { setError('Unable to create category.'); }
   };
 
-  const handleCreateItem = async (e: React.FormEvent) => {
+  const handleCreateItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCategoryId) { setError('Please select a category first.'); return; }
+    if (!itemName.trim()) { setError('Please enter an item name.'); return; }
+    if (!itemPrice.trim() || Number(itemPrice) <= 0) { setError('Please enter a valid price.'); return; }
+    setError('');
+    setShowCreateItemConfirm(true);
+  };
+
+  const confirmCreateItem = async () => {
+    setShowCreateItemConfirm(false);
+    setCreatingItem(true);
+    setError('');
+    setMessage('');
     try {
       const payload: any = {
         categoryId: selectedCategoryId, name: itemName, description: itemDescription,
@@ -806,9 +828,14 @@ export default function BranchMenuPage() {
       setIsVisible(true); setIsInStock(true);
       setDiscountEnabled(false); setDiscountValueType('PERCENTAGE'); setDiscountValue('');
       setDiscountTitle(''); setDiscountStartsAt(''); setDiscountEndsAt('');
-      setMessage('Item added.'); setError('');
+      setMessage('Item added.');
       fetchMenu();
-    } catch { setError('Unable to create item.'); setMessage(''); }
+    } catch {
+      setError('Unable to create item.');
+      setMessage('');
+    } finally {
+      setCreatingItem(false);
+    }
   };
 
   const startEditItem = (item: MenuItem) => {
@@ -951,11 +978,58 @@ export default function BranchMenuPage() {
     } catch { setError('Unable to update item status.'); setMessage(''); }
   };
 
+  const handleStartPhotoUpload = (itemId: string) => {
+    setPhotoUploadTargetItemId(itemId);
+    fileInputRef.current?.click();
+  };
+
+  const handleItemPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const itemId = photoUploadTargetItemId;
+    const file = e.target.files?.[0];
+    if (!itemId || !file) return;
+
+    setUploadingPhotoItemId(itemId);
+    setPhotoUploadSuccessItemId(null);
+    setMessage('');
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      await api.patch(`/menu-items/${itemId}`, formData, {
+        headers: { 'Content-Type': undefined },
+      });
+      setMessage('Item photo uploaded successfully.');
+      setPhotoUploadSuccessItemId(itemId);
+      window.setTimeout(() => {
+        setPhotoUploadSuccessItemId((prev) => (prev === itemId ? null : prev));
+      }, 4000);
+      fetchMenu();
+    } catch {
+      setError('Unable to upload item photo.');
+    } finally {
+      setUploadingPhotoItemId(null);
+      setPhotoUploadTargetItemId(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleViewInCustomerMenu = (item: MenuItem) => {
+    router.push(`/customer/restaurants/${branchId}`);
+  };
+
   const closeRestrictedModal = () => setRestrictedToggle(null);
 
   return (
     <AuthGuard requiredRoles={['super_admin', 'sales_operator', 'restaurant_owner', 'restaurant_admin', 'restaurant_manager', 'restaurant_staff']}>
       <div className="space-y-6">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleItemPhotoSelected}
+        />
 
           {/* Restricted action modal */}
           {restrictedToggle && (
@@ -1135,6 +1209,33 @@ export default function BranchMenuPage() {
             </div>
           )}
 
+          {showCreateItemConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+              <div className="w-full max-w-lg rounded-3xl bg-[var(--surface)] p-8 shadow-2xl">
+                <h2 className="text-2xl font-semibold text-[var(--tx)]">Confirm item creation</h2>
+                <p className="mt-3 text-sm text-[var(--tx-3)]">
+                  You are about to add a new menu item. Confirm to create this item under the selected category.
+                </p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={confirmCreateItem}
+                    disabled={creatingItem}
+                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-2)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {creatingItem ? 'Creating…' : 'Confirm add item'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateItemConfirm(false)}
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-5 py-3 text-sm font-semibold text-[var(--tx-2)] transition hover:bg-[var(--surface-2)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Menu overview */}
           <div className="rounded-3xl bg-[var(--surface)] p-6 shadow-sm border border-[var(--border)]">
@@ -1187,6 +1288,7 @@ export default function BranchMenuPage() {
                                 <th className="px-5 py-3 text-right">Price</th>
                                 <th className="px-5 py-3 text-center">Stock</th>
                                 <th className="px-5 py-3 text-center">Visible</th>
+                                <th className="px-5 py-3 text-center">Photo</th>
                                 {canWrite && <th className="px-5 py-3 text-right">Actions</th>}
                               </tr>
                             </thead>
@@ -1238,6 +1340,49 @@ export default function BranchMenuPage() {
                                         }`}>
                                           {item.isVisible ? 'Visible' : 'Hidden'}
                                         </span>
+                                      </td>
+                                      <td className="px-5 py-3.5 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                          {item.imageUrl ? (
+                                            <>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleViewInCustomerMenu(item)}
+                                                title="View this item in customer menu"
+                                                className="group rounded-full border border-[var(--border)] bg-[var(--surface-2)] p-1 transition hover:border-[var(--accent)]"
+                                              >
+                                                <img src={resolveMediaUrl(item.imageUrl)} alt={item.name} className="h-9 w-9 rounded-full object-cover" />
+                                              </button>
+                                              {canWrite && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleStartPhotoUpload(item.id)}
+                                                  title="Replace item photo"
+                                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--tx-2)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                                                >
+                                                  📸
+                                                </button>
+                                              )}
+                                            </>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleStartPhotoUpload(item.id)}
+                                              title="Upload item photo"
+                                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--tx-2)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                                            >
+                                              📸
+                                            </button>
+                                          )}
+                                          {uploadingPhotoItemId === item.id && (
+                                            <span className="text-[10px] text-[var(--tx-3)]">Uploading…</span>
+                                          )}
+                                          {photoUploadSuccessItemId === item.id && (
+                                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                              Uploaded
+                                            </span>
+                                          )}
+                                        </div>
                                       </td>
                                       <td className="px-5 py-3.5 text-right">
                                         <div className="flex items-center justify-end gap-1.5">

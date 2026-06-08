@@ -76,6 +76,8 @@ export default function AdminRestaurantsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [forwardStatus, setForwardStatus] = useState('');
   const [activeTab, setActiveTab] = useState<'details' | 'menu' | 'changes'>('details');
+  const [restaurantStatus, setRestaurantStatus] = useState<string>('review');
+  const [restaurantLeadStatus, setRestaurantLeadStatus] = useState<string>('REVIEW');
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   const [crLoading, setCrLoading] = useState(false);
   const [crAction, setCrAction] = useState<{ id: string; type: 'approve' | 'reject' } | null>(null);
@@ -206,6 +208,8 @@ export default function AdminRestaurantsPage() {
     try {
       const response = await restaurantsApi.get(restaurantId);
       setSelectedRestaurant(response.data);
+      setRestaurantStatus(response.data.status ?? 'review');
+      setRestaurantLeadStatus(response.data.leadStatus ?? 'REVIEW');
       await fetchDocuments(restaurantId);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Failed to load restaurant details.';
@@ -266,6 +270,30 @@ export default function AdminRestaurantsPage() {
 
     try {
       // 1. Use the proper approval endpoint
+      if (restaurantStatus !== selectedRestaurant.status || restaurantLeadStatus !== selectedRestaurant.leadStatus) {
+        setForwardStatus('Updating restaurant status…');
+        try {
+          await api.patch(`/restaurants/${restaurantId}`, {
+            status: restaurantStatus,
+            leadStatus: restaurantLeadStatus,
+          });
+        } catch (statusErr) {
+          console.warn('Restaurant status update failed:', statusErr);
+        }
+      }
+
+      if (restaurantStatus !== selectedRestaurant.status || restaurantLeadStatus !== selectedRestaurant.leadStatus) {
+        setForwardStatus('Updating restaurant status…');
+        try {
+          await api.patch(`/restaurants/${restaurantId}`, {
+            status: restaurantStatus,
+            leadStatus: restaurantLeadStatus,
+          });
+        } catch (statusErr) {
+          console.warn('Restaurant status update failed:', statusErr);
+        }
+      }
+
       setForwardStatus('Approving registration…');
       await api.post(`/restaurants/${restaurantId}/approve-registration`);
 
@@ -548,17 +576,19 @@ export default function AdminRestaurantsPage() {
                   {/* ── DETAILS TAB ── */}
                   {activeTab === 'details' && (
                     <>
-                      <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] pb-4">
+                      <div className="flex flex-col gap-4 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <h2 className="text-2xl font-semibold text-[var(--tx)]">{selectedRestaurant.name}</h2>
                           <p className="mt-1 text-[var(--tx-3)]">{selectedRestaurant.email}</p>
                         </div>
-                        <span className={`text-xs px-3 py-1 rounded-full font-semibold shrink-0 ${STATUS_COLORS[selectedRestaurant.status] || ''}`}>
-                          {selectedRestaurant.status.toUpperCase()}
-                        </span>
+                        <div className="space-y-3">
+                          <span className={`inline-flex items-center gap-2 rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--tx-3)] ${STATUS_COLORS[selectedRestaurant.status] || ''}`}>
+                            Current: {selectedRestaurant.status.toUpperCase()}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Contact */}
+                    {/* Contact */}
                       <div>
                         <h3 className="text-xs font-semibold uppercase tracking-widest text-[var(--tx-3)] mb-3">Contact</h3>
                         <div className="grid grid-cols-2 gap-3">
@@ -769,6 +799,36 @@ export default function AdminRestaurantsPage() {
                     );
                   })()}
 
+                  {activeTab === 'menu' && (
+                    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+                      <h3 className="text-sm font-semibold text-[var(--tx)]">Review status before approval</h3>
+                      <p className="mt-2 text-xs text-[var(--tx-3)]">Update the restaurant status and lead status below before forwarding this registration to the restaurant admin.</p>
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <label className="block text-sm text-[var(--tx)]">
+                          <span className="mb-1 block text-xs font-semibold uppercase tracking-widest text-[var(--tx-3)]">Status</span>
+                          <select value={restaurantStatus} onChange={(e) => setRestaurantStatus(e.target.value)}
+                            className="mt-1 w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--tx)] outline-none focus:border-[var(--accent)]">
+                            <option value="pending">Pending</option>
+                            <option value="review">Review</option>
+                            <option value="active">Active</option>
+                            <option value="rejected">Rejected</option>
+                          </select>
+                        </label>
+                        <label className="block text-sm text-[var(--tx)]">
+                          <span className="mb-1 block text-xs font-semibold uppercase tracking-widest text-[var(--tx-3)]">Lead status</span>
+                          <select value={restaurantLeadStatus} onChange={(e) => setRestaurantLeadStatus(e.target.value)}
+                            className="mt-1 w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--tx)] outline-none focus:border-[var(--accent)]">
+                            <option value="INTERESTED">Interested</option>
+                            <option value="REGISTERED">Registered</option>
+                            <option value="ACTIVATED">Activated</option>
+                            <option value="REVIEW">Review</option>
+                            <option value="REJECTED">Rejected</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── CHANGE REQUESTS TAB ── */}
                   {activeTab === 'changes' && (
                     crLoading ? (
@@ -831,13 +891,40 @@ export default function AdminRestaurantsPage() {
 
                   {/* Action Buttons */}
                   <div className="border-t border-[var(--border)] pt-4 space-y-2">
-                    <button onClick={() => setAction('forward')} disabled={actionLoading}
-                      className="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60 flex items-center justify-center gap-2">
-                      <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 10h14M11 4l6 6-6 6" />
-                      </svg>
-                      Forward to Restaurant Admin
-                    </button>
+                    {activeTab === 'details' ? (
+                      <button onClick={() => setActiveTab('menu')} disabled={actionLoading}
+                        className="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 10h14M11 4l6 6-6 6" />
+                        </svg>
+                        Next
+                      </button>
+                    ) : activeTab === 'menu' ? (
+                      <div className="space-y-2">
+                        <button onClick={() => setActiveTab('details')} disabled={actionLoading}
+                          className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[var(--tx)] font-semibold hover:bg-[var(--surface-2)] disabled:opacity-60 flex items-center justify-center gap-2">
+                          <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 10H3m6 6l-6-6 6-6" />
+                          </svg>
+                          Back to Details
+                        </button>
+                        <button onClick={() => setAction('forward')} disabled={actionLoading}
+                          className="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                          <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 10h14M11 4l6 6-6 6" />
+                          </svg>
+                          Forward to Restaurant Admin
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setAction('forward')} disabled={actionLoading}
+                        className="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 10h14M11 4l6 6-6 6" />
+                        </svg>
+                        Forward to Restaurant Admin
+                      </button>
+                    )}
                     <button onClick={() => setAction('reject')} disabled={actionLoading}
                       className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 font-semibold hover:bg-amber-100 disabled:opacity-60">
                       Move to Pending

@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
-import { customerDiscoveryApi, NearbyParams } from '../../../lib/api';
+import { motion } from 'framer-motion';
+import { customerDiscoveryApi, NearbyParams, resolveMediaUrl } from '../../../lib/api';
 import { getCustomerName } from '../../../lib/customer-auth';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -17,30 +17,53 @@ type Restaurant = {
 // ── Static data ────────────────────────────────────────────────────────────
 
 const CATEGORIES = [
-  { emoji: '🍕', label: 'Pizza',    q: 'pizza'   },
-  { emoji: '🍛', label: 'Biryani',  q: 'biryani' },
-  { emoji: '🍔', label: 'Burgers',  q: 'burger'  },
-  { emoji: '🌮', label: 'Wraps',    q: 'wrap'    },
-  { emoji: '🥗', label: 'Healthy',  q: 'salad'   },
-  { emoji: '🍣', label: 'Sushi',    q: 'sushi'   },
-  { emoji: '🍰', label: 'Desserts', q: 'dessert' },
-  { emoji: '☕', label: 'Café',     q: 'coffee'  },
-  { emoji: '🍜', label: 'Noodles',  q: 'noodles' },
-  { emoji: '🥐', label: 'Bakery',   q: 'bakery'  },
+  { emoji: '🍛', label: 'Biryani',   q: 'biryani', from: '#B45309', to: '#92400E' },
+  { emoji: '🍕', label: 'Pizza',     q: 'pizza',   from: '#BE185D', to: '#9D174D' },
+  { emoji: '🍔', label: 'Burgers',   q: 'burger',  from: '#D97706', to: '#B45309' },
+  { emoji: '🌮', label: 'Wraps',     q: 'wrap',    from: '#059669', to: '#047857' },
+  { emoji: '🥗', label: 'Healthy',   q: 'salad',   from: '#16A34A', to: '#15803D' },
+  { emoji: '🍣', label: 'Sushi',     q: 'sushi',   from: '#0369A1', to: '#075985' },
+  { emoji: '🍰', label: 'Desserts',  q: 'dessert', from: '#9333EA', to: '#7E22CE' },
+  { emoji: '☕', label: 'Café',      q: 'coffee',  from: '#78350F', to: '#5C2D0E' },
+  { emoji: '🍜', label: 'Noodles',   q: 'noodles', from: '#DC2626', to: '#B91C1C' },
+  { emoji: '🥐', label: 'Bakery',    q: 'bakery',  from: '#D97706', to: '#92400E' },
+  { emoji: '🍗', label: 'Chicken',   q: 'chicken', from: '#EA580C', to: '#C2410C' },
+  { emoji: '🥘', label: 'Curries',   q: 'curry',   from: '#B45309', to: '#78350F' },
 ];
 
 const OFFERS = [
-  { title: '50% OFF', sub: 'Your first order',      tag: 'NEW USER',  from: '#92400E', to: '#78350F', emoji: '🎉' },
-  { title: 'FREE Delivery', sub: 'Orders above ₹299', tag: 'LIMITED', from: '#4C1D95', to: '#3730A3', emoji: '🚀' },
-  { title: '₹100 Cashback', sub: 'Code FEAST100',   tag: 'HOT DEAL',  from: '#991B1B', to: '#7F1D1D', emoji: '💰' },
-  { title: '2× Points',     sub: 'On top restaurants', tag: 'WEEKEND', from: '#0E7490', to: '#155E75', emoji: '⭐' },
+  {
+    title: '50% OFF', sub: 'On your first order', tag: 'NEW USER',
+    gradient: 'linear-gradient(135deg, #92400E 0%, #7C2D12 100%)',
+    glowColor: 'rgba(217,119,6,0.35)', emoji: '🎉',
+  },
+  {
+    title: 'FREE Delivery', sub: 'Orders above ₹299', tag: 'LIMITED',
+    gradient: 'linear-gradient(135deg, #3730A3 0%, #4C1D95 100%)',
+    glowColor: 'rgba(99,102,241,0.35)', emoji: '🚀',
+  },
+  {
+    title: '₹100 Cashback', sub: 'Apply code FEAST100', tag: 'HOT DEAL',
+    gradient: 'linear-gradient(135deg, #991B1B 0%, #7F1D1D 100%)',
+    glowColor: 'rgba(239,68,68,0.35)', emoji: '💰',
+  },
+  {
+    title: '2× Points',  sub: 'On top restaurants', tag: 'WEEKEND',
+    gradient: 'linear-gradient(135deg, #155E75 0%, #0E7490 100%)',
+    glowColor: 'rgba(6,182,212,0.35)', emoji: '⭐',
+  },
 ];
 
-const AI_TAGS = [
-  'Most Loved Near You', 'Perfect for Tonight', 'Trending Now', 'Staff Pick', 'Top Rated', 'New & Hot',
+const TICKER = [
+  '🔥 50% OFF on first order',
+  '🚀 FREE delivery above ₹299',
+  '💰 ₹100 cashback with FEAST100',
+  '⭐ Double points this weekend',
+  '🎁 Refer & earn ₹200',
+  '🌟 New restaurants added daily',
 ];
 
-const CARD_BG = [
+const CARD_GRADIENTS = [
   'linear-gradient(135deg,#1C1200 0%,#3D2800 100%)',
   'linear-gradient(135deg,#001C0A 0%,#003520 100%)',
   'linear-gradient(135deg,#1C000A 0%,#360018 100%)',
@@ -49,93 +72,170 @@ const CARD_BG = [
   'linear-gradient(135deg,#1A0A00 0%,#3A1800 100%)',
 ];
 
-// ── Helper: greeting ───────────────────────────────────────────────────────
+const AI_TAGS = [
+  'Most Loved Near You', 'Perfect for Tonight', 'Trending Now',
+  "Editor's Choice", 'Top Rated', 'New & Hot',
+];
+
+const DISCOUNT_BADGES = [20, 30, 25, 15, 35, 40];
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function getGreeting() {
   const h = new Date().getHours();
-  if (h < 12) return { text: 'Good morning',   emoji: '☀️',  tip: 'Start your day right — breakfast awaits' };
-  if (h < 17) return { text: 'Good afternoon', emoji: '🌤️', tip: 'Fuel your afternoon with something great' };
-  if (h < 21) return { text: 'Good evening',   emoji: '🌆', tip: 'Wind down with a delicious dinner' };
-  return        { text: 'Good night',           emoji: '🌙', tip: 'Late-night cravings? We got you' };
+  if (h < 12) return { text: 'Good morning',   emoji: '☀️',  tip: 'Start your day with something delicious' };
+  if (h < 17) return { text: 'Good afternoon', emoji: '🌤️', tip: 'Fuel your afternoon with great food' };
+  if (h < 21) return { text: 'Good evening',   emoji: '🌆', tip: 'Wind down with a perfect dinner tonight' };
+  return        { text: 'Good night',           emoji: '🌙', tip: 'Late-night cravings? We got you covered' };
 }
 
-// ── Stagger variants ───────────────────────────────────────────────────────
-
 const stagger = { animate: { transition: { staggerChildren: 0.06 } } };
-const fadeUp  = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0, transition: { duration: 0.45 } } };
+const fadeUp  = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.38 } },
+};
 
-// ── Restaurant card ────────────────────────────────────────────────────────
+// ── Shimmer skeleton ────────────────────────────────────────────────────────
+
+function CardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-2xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+      <div className="h-48 shimmer" />
+      <div className="space-y-2.5 p-4">
+        <div className="h-4 w-3/4 shimmer rounded-full" />
+        <div className="h-3 w-1/2 shimmer rounded-full" />
+        <div className="flex gap-2 pt-1">
+          <div className="h-5 w-14 shimmer rounded-full" />
+          <div className="h-5 w-20 shimmer rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Restaurant card ─────────────────────────────────────────────────────────
 
 function RestaurantCard({ r, idx }: { r: Restaurant; idx: number }) {
   const id = r.branchId ?? r.id;
+  const discount = DISCOUNT_BADGES[idx % DISCOUNT_BADGES.length];
+  const showDiscount = idx % 3 === 0;
+
   return (
-    <motion.div variants={fadeUp} whileHover={{ y: -5 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}>
+    <motion.div variants={fadeUp} whileHover={{ y: -5 }} transition={{ type: 'spring', stiffness: 280, damping: 22 }}>
       <Link
         href={`/customer/restaurants/${id}`}
-        className="group block overflow-hidden rounded-3xl transition-shadow duration-300 hover:shadow-2xl"
+        className="group block overflow-hidden rounded-2xl transition-shadow duration-300 hover:shadow-2xl no-underline"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
-        {/* Image area */}
-        <div className="relative h-44 overflow-hidden">
+        {/* Image */}
+        <div className="relative h-48 overflow-hidden">
           {r.imageUrl ? (
             <img
-              src={r.imageUrl} alt={r.name}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+              src={resolveMediaUrl(r.imageUrl)}
+              alt={r.name}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-108"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center" style={{ background: CARD_BG[idx % CARD_BG.length] }}>
-              <span className="text-6xl opacity-50">🍽️</span>
+            <div className="flex h-full w-full items-center justify-center" style={{ background: CARD_GRADIENTS[idx % CARD_GRADIENTS.length] }}>
+              <span className="text-6xl opacity-35">🍽️</span>
             </div>
           )}
-          {/* Bottom gradient */}
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 55%)' }} />
 
-          {/* AI tag */}
+          {/* Gradient overlay */}
           <div
-            className="absolute left-3 top-3 flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold"
-            style={{ background: 'rgba(0,0,0,0.58)', backdropFilter: 'blur(10px)', color: 'var(--accent-bright)' }}
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.08) 55%, transparent 100%)' }}
+          />
+
+          {/* AI quality tag — top left */}
+          <div
+            className="absolute left-3 top-3 flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold"
+            style={{ background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(8px)', color: 'var(--accent-bright)' }}
           >
             ✦ {AI_TAGS[idx % AI_TAGS.length]}
           </div>
 
-          {/* Veg badge */}
-          {r.isVeg && (
+          {/* Veg indicator — top right */}
+          {r.isVeg != null && (
             <div
-              className="absolute right-3 top-3 rounded border px-1.5 py-0.5 text-[9px] font-bold"
-              style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', borderColor: '#4ade80', color: '#4ade80' }}
+              className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded border-2"
+              style={{
+                background: 'rgba(0,0,0,0.5)',
+                borderColor: r.isVeg ? '#22c55e' : '#ef4444',
+                backdropFilter: 'blur(8px)',
+              }}
             >
-              VEG
+              <div
+                className="h-2 w-2 rounded-full"
+                style={{ background: r.isVeg ? '#22c55e' : '#ef4444' }}
+              />
             </div>
           )}
 
-          {/* Delivery time */}
+          {/* Discount — bottom left */}
+          {showDiscount && (
+            <div
+              className="absolute bottom-3 left-3 rounded-lg px-2 py-0.5 text-[10px] font-black"
+              style={{ background: 'var(--accent)', color: 'white' }}
+            >
+              {discount}% OFF
+            </div>
+          )}
+
+          {/* Delivery time — bottom right */}
           {r.deliveryTime != null && (
             <div
-              className="absolute bottom-3 right-3 rounded-full px-2.5 py-1 text-[10px] font-semibold text-white"
-              style={{ background: 'rgba(0,0,0,0.58)', backdropFilter: 'blur(8px)' }}
+              className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-white"
+              style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}
             >
-              🕒 {r.deliveryTime} min
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="10" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
+              </svg>
+              {r.deliveryTime} min
             </div>
           )}
         </div>
 
         {/* Info */}
         <div className="p-4">
-          <p className="truncate font-bold leading-snug" style={{ color: 'var(--tx)', fontSize: 15 }}>{r.name}</p>
-          {r.cuisine && (
-            <p className="mt-0.5 truncate text-xs" style={{ color: 'var(--tx-3)' }}>{r.cuisine}</p>
-          )}
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--tx-2)' }}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate font-bold leading-snug" style={{ color: 'var(--tx)', fontSize: 15 }}>
+                {r.name}
+              </p>
+              {r.cuisine && (
+                <p className="mt-0.5 truncate text-xs" style={{ color: 'var(--tx-3)' }}>{r.cuisine}</p>
+              )}
+            </div>
+            {/* Favourite button */}
+            <button
+              className="shrink-0 transition-transform hover:scale-115"
+              onClick={(e) => e.preventDefault()}
+              aria-label="Add to favourites"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" strokeWidth="1.8">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Meta row */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
             {r.rating != null && (
-              <span className="flex items-center gap-1 rounded-full px-2 py-0.5 font-bold"
-                style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}>
+              <span
+                className="flex items-center gap-1 rounded-lg px-2 py-0.5 font-bold"
+                style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}
+              >
                 ★ {r.rating.toFixed(1)}
               </span>
             )}
-            {r.distance != null && <span>{r.distance.toFixed(1)} km</span>}
+            {r.distance != null && (
+              <span style={{ color: 'var(--tx-3)' }}>{r.distance.toFixed(1)} km</span>
+            )}
             {r.deliveryFee != null && (
-              <span style={{ color: r.deliveryFee === 0 ? '#16a34a' : 'var(--tx-2)' }}>
-                {r.deliveryFee === 0 ? 'Free delivery' : `₹${r.deliveryFee} delivery`}
+              <span style={{ color: r.deliveryFee === 0 ? '#16a34a' : 'var(--tx-3)' }}>
+                {r.deliveryFee === 0 ? '• Free delivery' : `• ₹${r.deliveryFee} delivery`}
               </span>
             )}
           </div>
@@ -145,44 +245,87 @@ function RestaurantCard({ r, idx }: { r: Restaurant; idx: number }) {
   );
 }
 
-// ── Mood section (horizontal scroll) ──────────────────────────────────────
+// ── Horizontal mood section ─────────────────────────────────────────────────
 
-function MoodSection({ title, desc, items }: { title: string; desc: string; items: Restaurant[] }) {
+function MoodSection({
+  title, desc, emoji, items,
+}: {
+  title: string; desc: string; emoji: string; items: Restaurant[];
+}) {
   if (!items.length) return null;
   return (
-    <section className="px-4">
-      <div className="mb-3 flex items-end justify-between">
-        <div>
-          <h2 className="text-base font-bold" style={{ color: 'var(--tx)' }}>{title}</h2>
-          <p className="text-xs" style={{ color: 'var(--tx-3)' }}>{desc}</p>
+    <section>
+      <div className="mb-5 flex items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl"
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+          >
+            {emoji}
+          </div>
+          <div>
+            <h2 className="text-base font-black" style={{ color: 'var(--tx)' }}>{title}</h2>
+            <p className="text-xs" style={{ color: 'var(--tx-3)' }}>{desc}</p>
+          </div>
         </div>
-        <Link href="/customer/discovery" className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>See all</Link>
+        <Link href="/customer/discovery" className="text-xs font-bold no-underline" style={{ color: 'var(--accent)' }}>
+          See all →
+        </Link>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
+
+      <div className="flex gap-4 overflow-x-auto px-4 pb-3 scrollbar-hide scroll-touch sm:px-6">
         {items.map((r, i) => {
           const id = r.branchId ?? r.id;
           return (
             <Link
-              key={id}
+              key={id ?? i}
               href={`/customer/restaurants/${id}`}
-              className="group shrink-0 w-44 overflow-hidden rounded-2xl transition hover:shadow-xl"
+              className="group shrink-0 w-52 overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl no-underline"
               style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
             >
-              <div className="relative h-28 overflow-hidden">
+              <div className="relative h-36 overflow-hidden">
                 {r.imageUrl ? (
-                  <img src={r.imageUrl} alt={r.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                  <img
+                    src={resolveMediaUrl(r.imageUrl)}
+                    alt={r.name}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center" style={{ background: CARD_BG[i % CARD_BG.length] }}>
-                    <span className="text-3xl opacity-50">🍽️</span>
+                  <div
+                    className="flex h-full w-full items-center justify-center"
+                    style={{ background: CARD_GRADIENTS[i % CARD_GRADIENTS.length] }}
+                  >
+                    <span className="text-5xl opacity-30">🍽️</span>
                   </div>
                 )}
+                <div
+                  className="absolute inset-0"
+                  style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.05) 55%, transparent 100%)' }}
+                />
+                <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between">
+                  {r.rating != null && (
+                    <span
+                      className="flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold"
+                      style={{ background: 'rgba(34,197,94,0.25)', color: '#4ade80', backdropFilter: 'blur(4px)' }}
+                    >
+                      ★ {r.rating.toFixed(1)}
+                    </span>
+                  )}
+                  {r.deliveryTime != null && (
+                    <span
+                      className="flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-semibold text-white"
+                      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+                    >
+                      ⏱ {r.deliveryTime}m
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="p-3">
-                <p className="truncate text-xs font-bold" style={{ color: 'var(--tx)' }}>{r.name}</p>
-                <p className="mt-0.5 text-[10px]" style={{ color: 'var(--tx-3)' }}>
-                  {r.rating != null ? `★ ${r.rating.toFixed(1)}` : ''}
-                  {r.deliveryTime != null ? `  ·  ${r.deliveryTime} min` : ''}
-                </p>
+                <p className="truncate text-xs font-bold leading-snug" style={{ color: 'var(--tx)' }}>{r.name}</p>
+                {r.cuisine && (
+                  <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--tx-3)' }}>{r.cuisine}</p>
+                )}
               </div>
             </Link>
           );
@@ -192,25 +335,41 @@ function MoodSection({ title, desc, items }: { title: string; desc: string; item
   );
 }
 
-// ── Skeleton ───────────────────────────────────────────────────────────────
+// ── Empty state ─────────────────────────────────────────────────────────────
 
-function CardSkeleton() {
+function EmptyState({ query, onClear }: { query: string; onClear: () => void }) {
   return (
-    <div className="overflow-hidden rounded-3xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-      <div className="h-44 animate-pulse" style={{ background: 'var(--surface-2)' }} />
-      <div className="space-y-2 p-4">
-        <div className="h-4 w-3/4 animate-pulse rounded-full" style={{ background: 'var(--surface-2)' }} />
-        <div className="h-3 w-1/2 animate-pulse rounded-full" style={{ background: 'var(--surface-2)' }} />
-        <div className="flex gap-2 pt-1">
-          <div className="h-5 w-12 animate-pulse rounded-full" style={{ background: 'var(--surface-2)' }} />
-          <div className="h-5 w-16 animate-pulse rounded-full" style={{ background: 'var(--surface-2)' }} />
-        </div>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="py-24 text-center"
+    >
+      <div
+        className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full"
+        style={{ background: 'var(--surface-2)' }}
+      >
+        <span className="text-5xl">🍽️</span>
       </div>
-    </div>
+      <p className="text-lg font-bold" style={{ color: 'var(--tx)' }}>
+        {query ? `No results for "${query}"` : 'No restaurants found'}
+      </p>
+      <p className="mt-1 text-sm" style={{ color: 'var(--tx-3)' }}>
+        {query ? 'Try a different search or browse categories' : 'Allow location or search by city'}
+      </p>
+      {query && (
+        <button
+          onClick={onClear}
+          className="mt-5 rounded-xl px-6 py-2.5 text-sm font-bold transition hover:opacity-80"
+          style={{ background: 'var(--accent)', color: 'white', boxShadow: '0 4px 14px var(--accent-muted)' }}
+        >
+          Clear search
+        </button>
+      )}
+    </motion.div>
   );
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────
+// ── Main page ───────────────────────────────────────────────────────────────
 
 export default function DiscoveryPage() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -222,16 +381,14 @@ export default function DiscoveryPage() {
   const [locationError, setLocationError] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
   const name      = getCustomerName();
   const firstName = name?.split(' ')[0] ?? '';
   const greeting  = getGreeting();
 
-  // Geolocation with 8-second timeout — falls back to India centre if slow/denied
+  // Geolocation
   useEffect(() => {
-    if (!navigator.geolocation) {
-      setLocationError('Geolocation not supported.');
-      return;
-    }
+    if (!navigator.geolocation) { setLocationError('Geolocation not supported.'); return; }
     const timer = setTimeout(() => setLocationError('Location timed out.'), 8000);
     navigator.geolocation.getCurrentPosition(
       (p) => { clearTimeout(timer); setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }); },
@@ -244,19 +401,22 @@ export default function DiscoveryPage() {
   const normalize = useCallback((item: any) => {
     const branchId = String(item.branchId ?? item.id ?? '').trim();
     const id       = String(item.id ?? item.branchId ?? '').trim();
-    return { ...item, id, branchId };
+    return {
+      ...item,
+      id,
+      branchId,
+      imageUrl: item.imageUrl ?? item.image_url,
+    };
   }, []);
 
-  // Handles all known response shapes the backend may return
   const extractList = useCallback((res: any): Restaurant[] => {
     const d = res.data;
-    // Try every common envelope key
-    const raw = Array.isArray(d)             ? d
-              : Array.isArray(d?.data)       ? d.data
-              : Array.isArray(d?.restaurants)? d.restaurants
-              : Array.isArray(d?.branches)   ? d.branches
-              : Array.isArray(d?.results)    ? d.results
-              : Array.isArray(d?.items)      ? d.items
+    const raw = Array.isArray(d)               ? d
+              : Array.isArray(d?.data)         ? d.data
+              : Array.isArray(d?.restaurants)  ? d.restaurants
+              : Array.isArray(d?.branches)     ? d.branches
+              : Array.isArray(d?.results)      ? d.results
+              : Array.isArray(d?.items)        ? d.items
               : null;
     if (!raw) return [];
     return raw
@@ -264,22 +424,20 @@ export default function DiscoveryPage() {
       .filter((r: any) => r.branchId && r.branchId !== 'undefined' && r.branchId !== '');
   }, [normalize]);
 
-  // useExactLocation true → 50 km GPS; false → 2000 km nationwide fallback from India centre
-  const fetchNearby = useCallback(async (lat: number, lng: number, useExactLocation = true) => {
+  const fetchNearby = useCallback(async (lat: number, lng: number, useExact = true) => {
     setLoading(true); setError('');
     try {
-      const radius = useExactLocation ? 50 : 2000;
-      const res = await customerDiscoveryApi.nearby({ lat, lng, radius, limit: 40 } as NearbyParams);
+      // Use a city-wide radius so all activated restaurants appear regardless of exact GPS position
+      const radius = useExact ? 50000 : 100000;
+      const res = await customerDiscoveryApi.nearby({ lat, lng, radius, limit: 200 } as NearbyParams);
       let results = extractList(res);
-
-      // Zero results → retry with global radius to catch branches with wrong/default coords
+      // Fallback: if backend returned nothing at all, widen to country-level
       if (results.length === 0) {
         try {
-          const fb = await customerDiscoveryApi.nearby({ lat, lng, radius: 50000, limit: 40 } as NearbyParams);
+          const fb = await customerDiscoveryApi.nearby({ lat, lng, radius: 500000, limit: 200 } as NearbyParams);
           results = extractList(fb);
         } catch { /* non-fatal */ }
       }
-
       setRestaurants(results);
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to load restaurants.';
@@ -288,7 +446,7 @@ export default function DiscoveryPage() {
   }, [extractList]);
 
   useEffect(() => {
-    if (coords) fetchNearby(coords.lat, coords.lng, true);
+    if (coords)          fetchNearby(coords.lat, coords.lng, true);
     else if (locationError) fetchNearby(20.5937, 78.9629, false);
   }, [coords, locationError, fetchNearby]);
 
@@ -300,9 +458,11 @@ export default function DiscoveryPage() {
       const res = await customerDiscoveryApi.search(q, lat, lng);
       let data: any = res.data?.data ?? res.data?.restaurants ?? res.data;
       if (!Array.isArray(data) && data?.data) data = data.data;
-      setRestaurants(Array.isArray(data)
-        ? data.map(normalize).filter((r: any) => r.branchId && r.branchId !== 'undefined')
-        : []);
+      setRestaurants(
+        Array.isArray(data)
+          ? data.map(normalize).filter((r: any) => r.branchId && r.branchId !== 'undefined')
+          : [],
+      );
     } catch (e: any) {
       setError(e?.response?.data?.message ?? 'Search failed.');
     } finally { setSearching(false); }
@@ -327,242 +487,541 @@ export default function DiscoveryPage() {
     fetchNearby(lat, lng, !!coords);
   };
 
-  // Derived slices for mood sections
-  const lateNight  = restaurants.slice(0, 5);
-  const healthy    = [...restaurants].reverse().slice(0, 5);
+  const lateNight = restaurants.slice(0, 6);
+  const healthy   = [...restaurants].reverse().slice(0, 6);
 
   return (
     <div style={{ background: 'var(--bg)' }}>
 
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
+      {/* ── OFFER TICKER ──────────────────────────────────────────────────── */}
+      <div className="overflow-hidden py-2.5" style={{ background: 'var(--accent)' }}>
+        <div
+          className="ticker-content gap-0"
+          style={{ color: 'white', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em' }}
+        >
+          {[...TICKER, ...TICKER, ...TICKER].map((item, i) => (
+            <span key={i} className="mx-10">{item}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* ── HERO SECTION — L99 PREMIUM ────────────────────────────────────── */}
       <section
-        className="relative overflow-hidden px-4 pb-20 pt-10"
-        style={{ background: 'linear-gradient(155deg,#1A0800 0%,#2E1000 35%,#451A00 65%,#1A0800 100%)' }}
+        className="relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(150deg, #0D0030 0%, #160050 18%, #2A0880 42%, #3D12B0 65%, #5420C8 82%, #6D28D9 100%)',
+          minHeight: 520,
+        }}
       >
-        {/* Glow orbs */}
+        {/* Dot-grid texture overlay */}
         <div
-          className="pointer-events-none absolute -right-16 -top-16 h-72 w-72 rounded-full opacity-25 blur-3xl"
-          style={{ background: 'radial-gradient(circle,#FFD700 0%,transparent 70%)' }}
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.045) 1px, transparent 1px)',
+            backgroundSize: '28px 28px',
+          }}
+        />
+
+        {/* Layered ambient orbs */}
+        <div
+          className="pointer-events-none absolute -right-32 -top-32 h-[560px] w-[560px] rounded-full opacity-25 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #A78BFA 0%, #7C3AED 45%, transparent 75%)' }}
         />
         <div
-          className="pointer-events-none absolute -bottom-8 left-1/3 h-56 w-56 rounded-full opacity-15 blur-3xl"
-          style={{ background: 'radial-gradient(circle,#D97706 0%,transparent 70%)' }}
+          className="pointer-events-none absolute bottom-0 left-0 h-80 w-80 -translate-x-1/3 translate-y-1/3 rounded-full opacity-20 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #E879F9 0%, #9333EA 55%, transparent 75%)' }}
+        />
+        <div
+          className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-10 blur-2xl"
+          style={{ background: 'radial-gradient(circle, #818CF8 0%, transparent 70%)' }}
+        />
+        {/* Top highlight edge */}
+        <div
+          className="pointer-events-none absolute left-0 right-0 top-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(196,181,253,0.5) 30%, rgba(196,181,253,0.5) 70%, transparent)' }}
         />
 
-        {/* Floating food emojis */}
-        {['🍕','🍔','🌮','🍣','🍛'].map((e, i) => (
-          <span
-            key={i}
-            className="pointer-events-none absolute text-3xl animate-float select-none"
-            style={{
-              right: `${8 + i * 12}%`,
-              top: `${10 + i * 10}%`,
-              opacity: 0.12,
-              animationDelay: `${i * 0.7}s`,
-              animationDuration: `${4 + i * 0.6}s`,
-            }}
-          >
-            {e}
-          </span>
-        ))}
+        {/* ── TWO-COLUMN GRID ─────────────────────────────────────────────── */}
+        <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
+          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
 
-        {/* Greeting */}
-        <motion.div
-          className="mx-auto max-w-6xl"
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55 }}
-        >
-          <p className="text-sm font-semibold" style={{ color: 'rgba(212,175,55,0.75)' }}>
-            {greeting.emoji} {greeting.text}{firstName ? `, ${firstName}` : ''}!
-          </p>
-          {firstName ? (
-            <p className="mt-4 text-xl font-semibold text-white">{firstName},</p>
-          ) : null}
-          <h1 className="mt-1 text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl">
-            What are you{' '}
-            <span style={{ color: 'var(--accent-bright)' }}>craving</span>
-            <br />today?
-          </h1>
-          <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.38)' }}>{greeting.tip}</p>
-        </motion.div>
-
-        {/* Search bar */}
-        <motion.div
-          className="mx-auto mt-7 max-w-2xl"
-          initial={{ opacity: 0, y: 26 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: 0.12 }}
-        >
-          <form onSubmit={handleSearch}>
-            <div
-              className="flex items-center gap-3 rounded-full px-4 py-3"
-              style={{
-                background: 'rgba(255,255,255,0.10)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255,255,255,0.14)',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.24)',
-              }}
+            {/* ── LEFT: Text + Search ──────────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, x: -28 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             >
-              <svg className="shrink-0" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2.2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input
-                ref={searchRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search restaurants or dishes…"
-                className="hero-input flex-1 text-sm"
-              />
-              {query && (
-                <button type="button" onClick={clearSearch}
-                  className="shrink-0 text-xs font-semibold"
-                  style={{ color: 'rgba(255,255,255,0.5)' }}>
-                  ✕
-                </button>
-              )}
-              {/* Mic */}
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.88 }}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition hover:brightness-110"
-                style={{ background: 'var(--accent)' }}
+              {/* Greeting pill */}
+              <motion.div
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="mb-5 inline-flex items-center gap-2 rounded-full px-4 py-2"
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.16)',
+                  backdropFilter: 'blur(12px)',
+                }}
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0D0906" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-                </svg>
-              </motion.button>
-              {/* Search submit */}
-              {query && (
-                <button
-                  type="submit"
-                  disabled={searching}
-                  className="hidden sm:flex shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition hover:brightness-110 disabled:opacity-60"
-                  style={{ background: 'var(--accent)', color: '#0D0906' }}
+                <span className="text-base">{greeting.emoji}</span>
+                <span className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                  {greeting.text}{firstName ? `, ${firstName}` : ''}
+                </span>
+                <span className="h-1 w-1 rounded-full" style={{ background: 'rgba(255,255,255,0.3)' }} />
+                <span className="flex items-center gap-1 text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="rgba(167,139,250,0.9)">
+                    <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.013 3.5-4.619 3.5-7.327A8.25 8.25 0 006.75 11.999c0 2.708 1.556 5.314 3.5 7.327a19.58 19.58 0 002.683 2.282 16.975 16.975 0 001.144.742zM21.75 11.999a9.75 9.75 0 11-19.5 0 9.75 9.75 0 0119.5 0zM12 9.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" clipRule="evenodd" />
+                  </svg>
+                  Hyderabad
+                </span>
+              </motion.div>
+
+              {/* Headline */}
+              <motion.h1
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.55 }}
+                className="text-5xl font-black leading-[1.04] tracking-tight text-white sm:text-6xl"
+              >
+                What are you
+                <br />
+                <span
+                  style={{
+                    background: 'linear-gradient(90deg, #E9D5FF 0%, #C4B5FD 30%, #DDD6FE 60%, #A78BFA 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                    backgroundSize: '200% auto',
+                    animation: 'gold-shimmer 5s linear infinite',
+                  }}
                 >
-                  {searching ? '…' : 'Go'}
-                </button>
-              )}
-            </div>
-          </form>
-        </motion.div>
+                  craving
+                </span>
+                {' '}today?
+              </motion.h1>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.18 }}
+                className="mt-3 text-base leading-relaxed"
+                style={{ color: 'rgba(255,255,255,0.42)' }}
+              >
+                {greeting.tip}
+              </motion.p>
+
+              {/* ── SEARCH BAR ── premium boxed layout ─────────────────────── */}
+              <motion.form
+                onSubmit={handleSearch}
+                className="mt-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+              >
+                <div
+                  className="flex items-center overflow-hidden rounded-2xl p-1.5"
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    border: '1.5px solid rgba(255,255,255,0.22)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                    boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)',
+                  }}
+                >
+                  {/* Search icon box */}
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                    style={{ background: 'rgba(255,255,255,0.1)' }}
+                  >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="2.3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                  </div>
+
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Restaurants, dishes, cuisines…"
+                    className="hero-input flex-1 px-3 text-sm font-medium"
+                  />
+
+                  {query && (
+                    <button
+                      type="button"
+                      onClick={clearSearch}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm transition"
+                      style={{ color: 'rgba(255,255,255,0.45)' }}
+                    >
+                      ✕
+                    </button>
+                  )}
+
+                  {/* Voice button */}
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.88 }}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl mx-1 transition"
+                    style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.75)' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+                    </svg>
+                  </motion.button>
+
+                  {/* Search CTA */}
+                  <motion.button
+                    type="submit"
+                    disabled={searching}
+                    whileTap={{ scale: 0.95 }}
+                    className="shrink-0 rounded-xl px-6 py-2.5 text-sm font-bold disabled:opacity-60 transition"
+                    style={{
+                      background: 'linear-gradient(135deg, #5B21B6 0%, #7C3AED 60%, #8B5CF6 100%)',
+                      color: 'white',
+                      boxShadow: '0 4px 20px rgba(91,33,182,0.6), inset 0 1px 0 rgba(255,255,255,0.18)',
+                    }}
+                  >
+                    {searching ? '…' : 'Search'}
+                  </motion.button>
+                </div>
+              </motion.form>
+
+              {/* Trending search chips */}
+              <motion.div
+                className="mt-4 flex flex-wrap items-center gap-2"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  Trending:
+                </span>
+                {[
+                  { label: '🍛 Biryani', q: 'biryani' },
+                  { label: '🍕 Pizza', q: 'pizza' },
+                  { label: '🍔 Burger', q: 'burger' },
+                  { label: '🥗 Healthy', q: 'salad' },
+                  { label: '🍰 Desserts', q: 'dessert' },
+                ].map((tag) => (
+                  <button
+                    key={tag.q}
+                    onClick={() => { setQuery(tag.q); runSearch(tag.q); }}
+                    className="rounded-full px-3 py-1 text-xs font-semibold transition hover:bg-white/15"
+                    style={{
+                      background: 'rgba(255,255,255,0.08)',
+                      color: 'rgba(255,255,255,0.72)',
+                      border: '1px solid rgba(255,255,255,0.14)',
+                    }}
+                  >
+                    {tag.label}
+                  </button>
+                ))}
+              </motion.div>
+
+              {/* Stats row with dividers */}
+              <motion.div
+                className="mt-10 flex items-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.38 }}
+              >
+                {[
+                  { value: '500+', label: 'Restaurants', icon: '🏪' },
+                  { value: '30 min', label: 'Avg delivery', icon: '⚡' },
+                  { value: '4.8 ★', label: 'Avg rating', icon: '✨' },
+                ].map((s, i) => (
+                  <div key={s.label} className="flex items-center">
+                    {i > 0 && (
+                      <div
+                        className="mx-6 h-10 w-px"
+                        style={{ background: 'rgba(255,255,255,0.12)' }}
+                      />
+                    )}
+                    <div>
+                      <p className="text-2xl font-black text-white leading-none">{s.value}</p>
+                      <p className="mt-1 text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.38)' }}>
+                        {s.label}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
+            </motion.div>
+
+            {/* ── RIGHT: Food category showcase grid ──────────────────────── */}
+            <motion.div
+              className="hidden lg:block"
+              initial={{ opacity: 0, scale: 0.9, x: 28 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <div className="relative">
+                {/* 2×3 category grid */}
+                <div className="grid grid-cols-3 gap-3">
+                  {CATEGORIES.slice(0, 6).map((cat, i) => {
+                    const isActive = activeCategory === cat.q;
+                    return (
+                      <motion.button
+                        key={cat.q}
+                        onClick={() => handleCategory(cat)}
+                        initial={{ opacity: 0, y: 24 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25 + i * 0.07 }}
+                        whileHover={{ scale: 1.06, y: -4 }}
+                        whileTap={{ scale: 0.94 }}
+                        className="flex flex-col items-center justify-center gap-3 rounded-2xl transition-all duration-200"
+                        style={{
+                          aspectRatio: '1',
+                          padding: '20px 12px',
+                          background: isActive
+                            ? `linear-gradient(135deg, ${cat.from}, ${cat.to})`
+                            : 'rgba(255,255,255,0.08)',
+                          border: `1.5px solid ${isActive ? cat.from : 'rgba(255,255,255,0.14)'}`,
+                          backdropFilter: 'blur(12px)',
+                          boxShadow: isActive
+                            ? `0 10px 32px ${cat.from}66`
+                            : '0 2px 16px rgba(0,0,0,0.25)',
+                        }}
+                      >
+                        <span className="text-4xl leading-none">{cat.emoji}</span>
+                        <span className="text-xs font-bold whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                          {cat.label}
+                        </span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+
+                {/* Floating info badge — top right */}
+                <motion.div
+                  className="absolute -right-5 -top-5 flex items-center gap-2.5 rounded-2xl px-4 py-2.5"
+                  style={{
+                    background: 'rgba(255,255,255,0.12)',
+                    backdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(255,255,255,0.22)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  }}
+                  animate={{ y: [0, -7, 0] }}
+                  transition={{ repeat: Infinity, duration: 3.2, ease: 'easeInOut' }}
+                >
+                  <span className="text-xl">🔥</span>
+                  <div>
+                    <p className="text-xs font-black text-white">100+ restaurants</p>
+                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.5)' }}>open right now</p>
+                  </div>
+                </motion.div>
+
+                {/* Floating info badge — bottom left */}
+                <motion.div
+                  className="absolute -bottom-5 -left-5 flex items-center gap-2.5 rounded-2xl px-4 py-2.5"
+                  style={{
+                    background: 'rgba(255,255,255,0.12)',
+                    backdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(255,255,255,0.22)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  }}
+                  animate={{ y: [0, 7, 0] }}
+                  transition={{ repeat: Infinity, duration: 3.8, ease: 'easeInOut', delay: 0.6 }}
+                >
+                  <span className="text-xl">⚡</span>
+                  <div>
+                    <p className="text-xs font-black text-white">Avg 30 min</p>
+                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.5)' }}>delivery time</p>
+                  </div>
+                </motion.div>
+
+                {/* Decorative glow behind grid */}
+                <div
+                  className="pointer-events-none absolute inset-0 -z-10 rounded-3xl opacity-30 blur-2xl"
+                  style={{ background: 'radial-gradient(circle at center, #7C3AED 0%, transparent 70%)' }}
+                />
+              </div>
+            </motion.div>
+
+          </div>
+        </div>
+
+        {/* Bottom wave curve */}
+        <div className="absolute bottom-0 left-0 right-0 overflow-hidden leading-none">
+          <svg viewBox="0 0 1440 48" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ display: 'block', height: 48, width: '100%' }}>
+            <path d="M0 48 C360 0 1080 0 1440 48 L1440 48 L0 48 Z" fill="var(--bg)" />
+          </svg>
+        </div>
       </section>
 
-      {/* ── Content sections ──────────────────────────────────────────── */}
-      <div className="space-y-10 pb-8 pt-8">
+      {/* ── PAGE BODY ─────────────────────────────────────────────────────── */}
+      <div className="space-y-12 pb-16 pt-8">
 
-        {/* ── Offer banners ─────────────────────────────────────────── */}
-        <section className="px-4">
-          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-            {OFFERS.map((o, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: 24 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.08 }}
-                whileHover={{ scale: 1.03 }}
-                className="shrink-0 w-64 md:w-72 cursor-pointer rounded-3xl p-5"
-                style={{ background: `linear-gradient(135deg,${o.from} 0%,${o.to} 100%)` }}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white">
-                      {o.tag}
-                    </span>
-                    <p className="mt-2 text-2xl font-black text-white leading-none">{o.title}</p>
-                    <p className="mt-1 text-sm text-white/75">{o.sub}</p>
-                  </div>
-                  <span className="text-4xl">{o.emoji}</span>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Category chips ────────────────────────────────────────── */}
-        <section className="px-4">
-          <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
+        {/* ── CATEGORY PILLS ───────────────────────────────────────────────── */}
+        <section className="px-4 sm:px-6">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide scroll-touch">
             {CATEGORIES.map((cat) => {
               const active = activeCategory === cat.q;
               return (
                 <motion.button
                   key={cat.q}
-                  whileTap={{ scale: 0.90 }}
+                  whileTap={{ scale: 0.92 }}
                   onClick={() => handleCategory(cat)}
-                  className="shrink-0 flex min-w-[5.5rem] flex-col items-center gap-2 rounded-3xl px-5 py-4 transition-all duration-200 md:min-w-[7rem]"
+                  className="shrink-0 flex items-center gap-2 rounded-full px-4 py-2.5 transition-all duration-200"
                   style={{
-                    background: active ? 'color-mix(in srgb, var(--accent) 18%, var(--surface))' : 'var(--surface)',
-                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                    color: active ? 'var(--accent)' : 'var(--tx-2)',
-                    boxShadow: active ? '0 0 0 1px var(--accent)' : 'none',
+                    background: active ? `linear-gradient(135deg, ${cat.from}, ${cat.to})` : 'var(--surface)',
+                    border: `1.5px solid ${active ? cat.from : 'var(--border)'}`,
+                    boxShadow: active ? `0 4px 16px ${cat.from}66` : 'none',
                   }}
                 >
-                  <span className="text-2xl leading-none md:text-3xl">{cat.emoji}</span>
-                  <span className="text-xs font-semibold whitespace-nowrap md:text-sm">{cat.label}</span>
+                  <span className="text-lg leading-none">{cat.emoji}</span>
+                  <span
+                    className="text-[13px] font-bold whitespace-nowrap"
+                    style={{ color: active ? 'white' : 'var(--tx-2)' }}
+                  >
+                    {cat.label}
+                  </span>
                 </motion.button>
               );
             })}
           </div>
         </section>
 
-        {/* ── Errors / notices ─────────────────────────────────────── */}
+        {/* ── TODAY'S DEALS ─────────────────────────────────────────────────── */}
+        <section className="px-4 sm:px-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-black" style={{ color: 'var(--tx)' }}>Today's Deals</h2>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--tx-3)' }}>Limited time — grab them fast 🔥</p>
+            </div>
+            <button
+              className="rounded-xl px-3 py-1.5 text-xs font-bold transition hover:opacity-80"
+              style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}
+            >
+              View all →
+            </button>
+          </div>
+
+          <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide scroll-touch">
+            {OFFERS.map((o, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.08 }}
+                whileHover={{ scale: 1.03, y: -5 }}
+                className="relative shrink-0 w-64 sm:w-72 cursor-pointer overflow-hidden rounded-3xl"
+                style={{
+                  background: o.gradient,
+                  boxShadow: `0 14px 36px ${o.glowColor}`,
+                }}
+              >
+                {/* Dot texture overlay */}
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
+                    backgroundSize: '20px 20px',
+                    opacity: 0.25,
+                  }}
+                />
+                <div className="relative p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span
+                        className="inline-block rounded-lg px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest"
+                        style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}
+                      >
+                        {o.tag}
+                      </span>
+                      <p className="mt-3 text-3xl font-black text-white leading-none">{o.title}</p>
+                      <p className="mt-1.5 text-xs font-medium" style={{ color: 'rgba(255,255,255,0.72)' }}>{o.sub}</p>
+                    </div>
+                    <span className="text-5xl leading-none drop-shadow-md">{o.emoji}</span>
+                  </div>
+                  {/* Progress bar + CTA */}
+                  <div className="mt-5 flex items-center justify-between gap-3">
+                    <div className="flex flex-1 flex-col gap-1">
+                      <div
+                        className="h-1 w-full overflow-hidden rounded-full"
+                        style={{ background: 'rgba(255,255,255,0.18)' }}
+                      >
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${55 + i * 12}%`, background: 'rgba(255,255,255,0.65)' }}
+                        />
+                      </div>
+                      <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                        {55 + i * 12}% claimed
+                      </span>
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.92 }}
+                      className="shrink-0 rounded-xl px-3.5 py-1.5 text-[11px] font-black"
+                      style={{
+                        background: 'rgba(255,255,255,0.22)',
+                        color: 'white',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                      }}
+                    >
+                      Apply →
+                    </motion.button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── NOTICES ────────────────────────────────────────────────────────── */}
         {(error || locationError) && (
-          <div className="px-4 space-y-2">
-            {locationError && <p className="text-xs" style={{ color: 'var(--tx-3)' }}>📍 {locationError}</p>}
+          <div className="px-4 sm:px-6 space-y-2">
+            {locationError && (
+              <p className="text-xs" style={{ color: 'var(--tx-3)' }}>📍 {locationError}</p>
+            )}
             {error && (
-              <div className="rounded-2xl border px-4 py-3 text-sm"
-                style={{ background: 'var(--danger-bg)', borderColor: 'var(--danger-border)', color: 'var(--danger-text)' }}>
+              <div
+                className="rounded-xl border px-4 py-3 text-sm"
+                style={{ background: 'var(--danger-bg)', borderColor: 'var(--danger-border)', color: 'var(--danger-text)' }}
+              >
                 {error}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Main restaurant grid ──────────────────────────────────── */}
-        <section className="px-4">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-lg font-bold" style={{ color: 'var(--tx)' }}>
-              {query ? `Results for "${query}"` : '🔥 Trending Near You'}
-            </h2>
+        {/* ── TRENDING NEAR YOU ─────────────────────────────────────────────── */}
+        <section className="px-4 sm:px-6">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-xl font-black" style={{ color: 'var(--tx)' }}>
+                  {query ? `Results for "${query}"` : 'Trending Near You'}
+                </h2>
+                {!query && (
+                  <span className="live-dot h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: '#EF4444' }} />
+                )}
+              </div>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--tx-3)' }}>
+                {!loading && restaurants.length > 0
+                  ? `${restaurants.length} places nearby`
+                  : 'Based on your location'}
+              </p>
+            </div>
             {!loading && restaurants.length > 0 && (
-              <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                style={{ background: 'var(--surface-2)', color: 'var(--tx-3)' }}>
-                {restaurants.length} places
-              </span>
+              <button className="text-xs font-bold" style={{ color: 'var(--accent)' }}>See all →</button>
             )}
           </div>
 
           {loading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {[...Array(6)].map((_, i) => <CardSkeleton key={i} />)}
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {[...Array(8)].map((_, i) => <CardSkeleton key={i} />)}
             </div>
           ) : restaurants.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="py-20 text-center"
-            >
-              <p className="text-6xl">🍽️</p>
-              <p className="mt-4 font-bold" style={{ color: 'var(--tx-2)' }}>No restaurants found</p>
-              <p className="mt-1 text-sm" style={{ color: 'var(--tx-3)' }}>Try a different search or category</p>
-              {query && (
-                <button
-                  onClick={clearSearch}
-                  className="mt-4 rounded-full px-5 py-2 text-sm font-semibold transition hover:opacity-80"
-                  style={{ background: 'var(--accent)', color: '#0D0906' }}
-                >
-                  Clear search
-                </button>
-              )}
-            </motion.div>
+            <EmptyState query={query} onClear={clearSearch} />
           ) : (
             <motion.div
               variants={stagger}
               initial="initial"
               animate="animate"
-              className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             >
               {restaurants.map((r, i) => (
                 <RestaurantCard key={r.branchId ?? r.id ?? i} r={r} idx={i} />
@@ -571,70 +1030,338 @@ export default function DiscoveryPage() {
           )}
         </section>
 
-        {/* ── Mood sections (only when restaurants are loaded) ──────── */}
+        {/* ── EXTRA SECTIONS (after restaurants load) ───────────────────────── */}
         {!loading && restaurants.length > 0 && (
           <>
-            {/* AI Picks banner */}
-            <section className="mx-4 overflow-hidden rounded-3xl"
-              style={{ background: 'linear-gradient(135deg,#1A0800 0%,#3A1200 100%)', border: '1px solid rgba(212,175,55,0.2)' }}>
-              <div className="flex items-center justify-between px-5 py-4">
+            {/* ── YOUR REGULARS ─────────────────────────────────────────────── */}
+            <section className="px-4 sm:px-6">
+              <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--accent)' }}>✦ AI-Powered</p>
-                  <h3 className="mt-0.5 text-base font-black text-white">Picks just for you</h3>
-                  <p className="mt-0.5 text-xs text-white/40">Based on your taste profile</p>
+                  <p
+                    className="text-[11px] font-black uppercase tracking-widest"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    ⚡ Quick Reorder
+                  </p>
+                  <h3 className="mt-1 text-xl font-black" style={{ color: 'var(--tx)' }}>Your Regulars</h3>
                 </div>
-                <div className="flex -space-x-3">
-                  {restaurants.slice(0, 3).map((r, i) => (
-                    <div key={i}
-                      className="h-10 w-10 overflow-hidden rounded-full border-2"
-                      style={{ borderColor: 'var(--accent)', background: CARD_BG[i] }}>
-                      {r.imageUrl && <img src={r.imageUrl} alt="" className="h-full w-full object-cover" />}
-                    </div>
-                  ))}
-                </div>
+                <Link
+                  href="/customer/orders"
+                  className="text-xs font-bold no-underline"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  History →
+                </Link>
+              </div>
+
+              <div className="flex gap-5 overflow-x-auto pb-2 scrollbar-hide scroll-touch">
+                {restaurants.slice(0, 6).map((r, i) => {
+                  const id = r.branchId ?? r.id;
+                  return (
+                    <Link
+                      key={id ?? i}
+                      href={`/customer/restaurants/${id}`}
+                      className="group shrink-0 flex flex-col items-center gap-2.5 no-underline"
+                      style={{ width: 84 }}
+                    >
+                      <div
+                        className="relative h-20 w-20 overflow-hidden rounded-2xl transition-transform duration-300 group-hover:scale-105"
+                        style={{
+                          background: CARD_GRADIENTS[i % CARD_GRADIENTS.length],
+                          border: '2px solid var(--border)',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                        }}
+                      >
+                        {r.imageUrl ? (
+                          <img src={resolveMediaUrl(r.imageUrl)} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <span className="text-3xl opacity-40">🍽️</span>
+                          </div>
+                        )}
+                        <div
+                          className="absolute inset-0"
+                          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 55%)' }}
+                        />
+                      </div>
+                      <p
+                        className="w-full truncate text-center text-[11px] font-bold"
+                        style={{ color: 'var(--tx-2)' }}
+                      >
+                        {r.name}
+                      </p>
+                      <span
+                        className="rounded-lg px-2.5 py-0.5 text-[10px] font-bold"
+                        style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}
+                      >
+                        Reorder
+                      </span>
+                    </Link>
+                  );
+                })}
               </div>
             </section>
 
+            {/* ── LATE NIGHT CRAVINGS ──────────────────────────────────────── */}
             <MoodSection
-              title="🌙 Late Night Cravings"
+              title="Late Night Cravings"
               desc="Perfect for midnight hunger pangs"
+              emoji="🌙"
               items={lateNight}
             />
 
+            {/* ── HEALTHY & FRESH ───────────────────────────────────────────── */}
             <MoodSection
-              title="🥗 Healthy &amp; Fresh"
+              title="Healthy & Fresh"
               desc="Good food that's good for you"
+              emoji="🥗"
               items={healthy}
             />
 
-            {/* Combo / reorder section */}
-            <section className="px-4">
-              <div className="overflow-hidden rounded-3xl p-5"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--accent)' }}>Quick Reorder</p>
-                <h3 className="mt-1 text-base font-bold" style={{ color: 'var(--tx)' }}>Your Favourites</h3>
-                <p className="mt-1 text-xs" style={{ color: 'var(--tx-3)' }}>One-tap to reorder your most loved meals</p>
-                <div className="mt-4 flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-                  {restaurants.slice(0, 4).map((r, i) => {
+            {/* ── AI PICKS — Polaroid + Stacked Fanned Cards ────────────── */}
+            <section className="px-4 sm:px-6">
+
+              {/* Section header */}
+              <div className="mb-8 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'var(--accent)' }}>
+                    ✦ AI-Powered
+                  </p>
+                  <h2 className="mt-1 text-xl font-black" style={{ color: 'var(--tx)' }}>
+                    Personalised just for you
+                  </h2>
+                  <p className="mt-0.5 text-xs" style={{ color: 'var(--tx-3)' }}>
+                    Based on your taste profile &amp; past orders
+                  </p>
+                </div>
+              </div>
+
+              {/* Two-column layout */}
+              <div className="grid grid-cols-1 items-center gap-10 sm:grid-cols-2">
+
+                {/* ── LEFT: Big polaroid featured card ── */}
+                <div className="flex justify-center sm:justify-start">
+                  {restaurants[0] && (() => {
+                    const r = restaurants[0];
                     const id = r.branchId ?? r.id;
                     return (
-                      <Link key={id ?? i} href={`/customer/restaurants/${id}`}
-                        className="group shrink-0 flex items-center gap-3 rounded-2xl px-3 py-2.5 transition hover:brightness-110"
-                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', minWidth: 170 }}>
-                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl" style={{ background: CARD_BG[i] }}>
-                          {r.imageUrl && <img src={r.imageUrl} alt="" className="h-full w-full object-cover" />}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-bold" style={{ color: 'var(--tx)' }}>{r.name}</p>
-                          <p className="text-[10px]" style={{ color: 'var(--accent)' }}>Order again →</p>
-                        </div>
+                      <Link href={`/customer/restaurants/${id}`} className="no-underline inline-block">
+                        <motion.div
+                          initial={{ rotate: -2 }}
+                          animate={{ rotate: -2 }}
+                          whileHover={{ rotate: 0, scale: 1.03, y: -10 }}
+                          transition={{ type: 'spring', stiffness: 200, damping: 22 }}
+                          className="inline-block relative"
+                          style={{
+                            background: '#fefefe',
+                            padding: '10px 10px 40px',
+                            borderRadius: 4,
+                            boxShadow: '0 16px 56px rgba(0,0,0,0.22), 0 4px 16px rgba(0,0,0,0.1)',
+                            width: 280,
+                          }}
+                        >
+                          {/* Tape strips */}
+                          <div style={{
+                            position: 'absolute', top: -11, left: 28, width: 56, height: 18,
+                            background: 'rgba(255,232,40,0.72)', borderRadius: 2,
+                            transform: 'rotate(-12deg)',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.14)',
+                          }} />
+                          <div style={{
+                            position: 'absolute', top: -11, right: 28, width: 56, height: 18,
+                            background: 'rgba(255,232,40,0.72)', borderRadius: 2,
+                            transform: 'rotate(12deg)',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.14)',
+                          }} />
+
+                          {/* Image */}
+                          <div style={{ height: 220, borderRadius: 2, overflow: 'hidden', background: CARD_GRADIENTS[0] }}>
+                            {r.imageUrl ? (
+                              <img src={resolveMediaUrl(r.imageUrl)} alt={r.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72 }}>🍽️</div>
+                            )}
+                          </div>
+
+                          {/* Caption row */}
+                          <div style={{ paddingTop: 12, paddingLeft: 4, paddingRight: 4, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
+                            <p style={{ fontSize: 18, fontWeight: 900, color: '#111827', margin: 0, lineHeight: 1.25, fontFamily: 'Georgia, serif', flex: 1 }}>
+                              {r.name}
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+                              {r.rating != null && (
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#166534', background: '#dcfce7', borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>
+                                  ★ {r.rating.toFixed(1)}
+                                </span>
+                              )}
+                              <div style={{
+                                width: 34, height: 34, borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #14532d, #166534)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 16, color: 'white',
+                                boxShadow: '0 4px 12px rgba(21,101,48,0.45)',
+                              }}>🛒</div>
+                            </div>
+                          </div>
+                        </motion.div>
                       </Link>
                     );
-                  })}
+                  })()}
                 </div>
+
+                {/* ── RIGHT: Stacked fanned cards ── */}
+                <div className="flex items-center justify-center" style={{ minHeight: 340 }}>
+                  <div style={{ position: 'relative', width: 240, height: 320 }}>
+                    {restaurants.slice(1, 4).map((r, i) => {
+                      const id = r.branchId ?? r.id;
+                      const rotDegs  = [-16, -5, 8];
+                      const xOffsets = [-26, -6, 16];
+                      const yOffsets = [20, 8, -8];
+                      return (
+                        <Link
+                          key={id ?? i}
+                          href={`/customer/restaurants/${id}`}
+                          className="no-underline block"
+                          style={{
+                            position: 'absolute', left: '50%', top: '50%',
+                            marginLeft: -100, marginTop: -140,
+                            zIndex: i + 1,
+                          }}
+                        >
+                          <motion.div
+                            initial={{ rotate: rotDegs[i], x: xOffsets[i], y: yOffsets[i] }}
+                            animate={{ rotate: rotDegs[i], x: xOffsets[i], y: yOffsets[i] }}
+                            whileHover={{ rotate: 0, x: 0, y: -20, scale: 1.06 }}
+                            transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+                            style={{
+                              width: 200, borderRadius: 20, overflow: 'hidden',
+                              background: 'white',
+                              boxShadow: '0 12px 40px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.1)',
+                              cursor: 'pointer',
+                              position: 'relative',
+                            }}
+                          >
+                            {/* Sale badge */}
+                            <div style={{
+                              position: 'absolute', top: 10, left: 10, zIndex: 2,
+                              background: 'rgba(21,101,48,0.92)', backdropFilter: 'blur(8px)',
+                              borderRadius: 999, padding: '4px 12px',
+                              fontSize: 11, fontWeight: 800, color: '#dcfce7',
+                            }}>Sale</div>
+
+                            {/* Image */}
+                            <div style={{ height: 160, overflow: 'hidden', background: CARD_GRADIENTS[(i + 1) % CARD_GRADIENTS.length] }}>
+                              {r.imageUrl ? (
+                                <img src={resolveMediaUrl(r.imageUrl)} alt={r.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 52 }}>🍽️</div>
+                              )}
+                            </div>
+
+                            {/* Card body */}
+                            <div style={{ padding: '12px 14px 14px', background: 'white' }}>
+                              <p style={{ fontSize: 13, fontWeight: 800, color: '#111827', margin: 0, lineHeight: 1.3 }}>
+                                {r.name.length > 24 ? `${r.name.slice(0, 24)}…` : r.name}
+                              </p>
+                              {r.rating != null && (
+                                <p style={{ fontSize: 11, color: '#6b7280', margin: '4px 0 0', fontWeight: 600 }}>
+                                  ★ {r.rating.toFixed(1)}{r.deliveryTime ? ` · ${r.deliveryTime} min` : ''}
+                                </p>
+                              )}
+                              <div style={{
+                                marginTop: 10,
+                                background: 'linear-gradient(135deg, #14532d, #166534)',
+                                borderRadius: 11, padding: '9px 0',
+                                fontSize: 12, fontWeight: 900, color: 'white',
+                                boxShadow: '0 4px 12px rgba(21,101,48,0.38)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+                              }}>
+                                <span style={{
+                                  width: 24, height: 24, borderRadius: 999,
+                                  background: 'rgba(255,255,255,0.18)',
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                }}>−</span>
+                                <span>Add To Cart</span>
+                                <span style={{
+                                  width: 24, height: 24, borderRadius: 999,
+                                  background: 'rgba(255,255,255,0.18)',
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                }}>+</span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+
               </div>
             </section>
 
+            {/* ── REWARDS CARD ──────────────────────────────────────────────── */}
+            <section className="px-4 sm:px-6">
+              <div
+                className="relative overflow-hidden rounded-3xl"
+                style={{
+                  background: 'linear-gradient(135deg, #78350F 0%, #92400E 35%, #B45309 65%, #D97706 100%)',
+                  boxShadow: '0 10px 36px rgba(217,119,6,0.32)',
+                }}
+              >
+                {/* Texture */}
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-20"
+                  style={{
+                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px)',
+                    backgroundSize: '20px 20px',
+                  }}
+                />
+                {/* Glow orb */}
+                <div
+                  className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full opacity-30 blur-2xl"
+                  style={{ background: 'radial-gradient(circle, #FDE68A 0%, transparent 70%)' }}
+                />
+                <div className="relative flex items-center justify-between p-6">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-4xl"
+                      style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)' }}
+                    >
+                      🏆
+                    </div>
+                    <div>
+                      <p className="text-base font-black text-white">Earn Reward Points</p>
+                      <p className="mt-0.5 text-xs" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                        Order more, earn more. Redeem on every order.
+                      </p>
+                      <div className="mt-3 flex items-center gap-3">
+                        <div
+                          className="h-1.5 w-32 overflow-hidden rounded-full"
+                          style={{ background: 'rgba(255,255,255,0.22)' }}
+                        >
+                          <div className="h-full w-[8%] rounded-full" style={{ background: 'rgba(255,255,255,0.8)' }} />
+                        </div>
+                        <span className="text-[10px] font-bold" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                          0 / 500 pts
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <Link
+                    href="/customer/payments"
+                    className="shrink-0 rounded-2xl px-4 py-2.5 text-xs font-black no-underline transition hover:opacity-90"
+                    style={{
+                      background: 'rgba(255,255,255,0.22)',
+                      color: 'white',
+                      backdropFilter: 'blur(8px)',
+                      border: '1px solid rgba(255,255,255,0.32)',
+                    }}
+                  >
+                    Start Earning
+                  </Link>
+                </div>
+              </div>
+            </section>
           </>
         )}
       </div>

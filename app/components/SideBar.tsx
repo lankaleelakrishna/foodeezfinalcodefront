@@ -146,21 +146,21 @@ function SidebarInner({ userRole, roleLabel, email, displayName, initials, pathn
       <div className="relative px-4 pb-4 pt-5">
         <div className="flex items-center gap-3">
           {/* Logo mark — white bg ensures logo is always clearly visible */}
-          <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl p-1.5"
-            style={{
-              background: '#FFFFFF',
-              border: '2px solid rgba(220,95,43,0.35)',
-              boxShadow: '0 0 0 3px rgba(220,95,43,0.12), 0 4px 12px rgba(220,95,43,0.20)',
-            }}
-          >
-            <Image src="/foodeez-sidebar-logo.png" alt="Foodeez" width={32} height={32} className="h-full w-full object-contain" />
-          </div>
+            <div
+              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl p-1"
+              style={{
+                background: 'transparent',
+                border: '2px solid rgba(220,95,43,0.12)',
+                boxShadow: '0 6px 18px rgba(220,95,43,0.08)',
+              }}
+            >
+              {/* Sidebar-specific logo: trimmed transparent icon that fills the box */}
+              <Image src="/photo3_trimmed.PNG" alt="Foodeez" width={56} height={56} className="h-full w-full object-contain" />
+            </div>
 
           <div>
-            <p className="font-display text-[15px] font-bold leading-none tracking-tight" style={{ color: 'var(--sb-tx)' }}>
-              FooDeeZ
-            </p>
+            {/* Replace text with photo2 image for sidebar branding */}
+            <Image src="/photo2.PNG" alt="Foodeez" width={92} height={20} className="object-contain" />
             {/* Role pill */}
             <span className={`mt-1 inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${rolePillCls}`}>
               {roleLabel}

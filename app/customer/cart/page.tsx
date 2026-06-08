@@ -70,7 +70,8 @@ export default function CartPage() {
         const res = await customerProfileApi.getAddresses();
         const list: Address[] = res.data?.addresses ?? res.data ?? [];
         setAddresses(list);
-        const def = list.find((a) => a.isDefault);
+        // auto-select default address, or fall back to first address
+        const def = list.find((a) => a.isDefault) ?? list[0];
         if (def) setSelectedAddressId(def.id);
       } catch { /* ignore */ }
     };
@@ -203,8 +204,16 @@ export default function CartPage() {
         <div className="rounded-[2rem] border border-slate-200/70 bg-white p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-bold text-slate-950">Delivery Address</h2>
           {addresses.length === 0 ? (
-            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm text-slate-500">
-              No addresses saved. <a href="/customer/profile" className="font-semibold text-[#B88A2E] hover:underline">Add one</a>
+            <div className="rounded-[1.5rem] border-2 border-dashed border-amber-200 bg-amber-50 p-6 text-center">
+              <p className="text-2xl">📍</p>
+              <p className="mt-2 font-semibold text-slate-800">No delivery address saved</p>
+              <p className="mt-1 text-sm text-slate-500">Add an address to place your order</p>
+              <button
+                onClick={() => router.push('/customer/profile')}
+                className="mt-4 rounded-2xl bg-[#B88A2E] px-6 py-2.5 text-sm font-bold text-white shadow transition hover:brightness-110"
+              >
+                + Add Address
+              </button>
             </div>
           ) : (
             <div className="space-y-3">

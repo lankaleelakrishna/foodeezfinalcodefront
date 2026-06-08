@@ -68,16 +68,21 @@ function validate(form: FormFields): FormErrors {
   else if (!/^\d{6}$/.test(form.zipCode)) errors.zipCode = 'Must be exactly 6 digits.';
 
 
+  const today = new Date().toISOString().split('T')[0];
+
   if (form.gstPresent === 'yes') {
     if (!form.gstNumber.trim()) errors.gstNumber = 'Required.';
     else if (!/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(form.gstNumber))
       errors.gstNumber = 'Invalid GSTIN format.';
     if (!form.gstExpiryDate) errors.gstExpiryDate = 'Required.';
+    else if (form.gstExpiryDate < today) errors.gstExpiryDate = 'Expiry date cannot be in the past.';
   } else if (form.gstPresent !== 'yes' && form.gstNumber && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(form.gstNumber)) {
     errors.gstNumber = 'Invalid GSTIN format.';
   }
 
   if (!form.fssaiNumber.trim()) errors.fssaiNumber = 'Required.';
+  if (!form.fssaiExpiryDate) errors.fssaiExpiryDate = 'Required.';
+  else if (form.fssaiExpiryDate < today) errors.fssaiExpiryDate = 'Expiry date cannot be in the past.';
   else if (!/^\d{14}$/.test(form.fssaiNumber)) errors.fssaiNumber = 'Must be exactly 14 digits.';
 
   if (!form.fssaiExpiryDate) errors.fssaiExpiryDate = 'Required.';
@@ -120,6 +125,11 @@ function allowDigitsOnly(e: React.KeyboardEvent<HTMLInputElement>) {
 function allowLettersSpaces(e: React.KeyboardEvent<HTMLInputElement>) {
   if (PASS_THROUGH.includes(e.key) || e.ctrlKey || e.metaKey) return;
   if (!/^[a-zA-Z\s]$/.test(e.key)) e.preventDefault();
+}
+
+function allowNameCharacters(e: React.KeyboardEvent<HTMLInputElement>) {
+  if (PASS_THROUGH.includes(e.key) || e.ctrlKey || e.metaKey) return;
+  if (!/^[a-zA-Z\s.'-]$/.test(e.key)) e.preventDefault();
 }
 
 function blockNumberExtras(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -165,6 +175,7 @@ export default function RestaurantRegisterPage() {
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [serverError, setServerError] = useState('');
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [panFile, setPanFile] = useState<File | null>(null);
   const [gstFile, setGstFile] = useState<File | null>(null);
   const [fssaiFile, setFssaiFile] = useState<File | null>(null);
@@ -387,49 +398,9 @@ export default function RestaurantRegisterPage() {
   const optionalString = (value: string) => (value?.trim() ? value.trim() : undefined);
 
   // Final submit: send ALL data to the DB in a single call only when step 3 is complete
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setServerError('');
-
-    const allTouched = Object.keys(EMPTY_FORM).reduce(
-      (a, k) => ({ ...a, [k]: true }), {} as Record<keyof FormFields, boolean>,
-    );
-    setTouched(allTouched);
-    const errs = validate(form);
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-
-    if (!reviewConfirmed) {
-      setServerError('Please confirm that you have reviewed all details before submitting.');
-      return;
-    }
-
-    if (form.gstPresent === 'yes' && !gstFile) {
-      setServerError('GST document upload is required. Please go back to step 2 and upload the GST document.');
-      return;
-    }
-    if (!panFile) {
-      setServerError('PAN card upload is required. Please go back to step 2 and upload the PAN card.');
-      return;
-    }
-    if (!fssaiFile) {
-      setServerError('FSSAI document upload is required. Please go back to step 2 and upload the FSSAI document.');
-      return;
-    }
-    if (!bankFile) {
-      setServerError('Bank document upload is required. Please go back to step 2 and upload the bank document.');
-      return;
-    }
-
-    const hasMenuItems = menuExtracted && menuExtracted.length > 0 && menuExtracted.some(c => c.items.length > 0);
-    if (!hasMenuItems) {
-      setServerError('Menu is required. Please upload and extract a menu file or add items manually before submitting.');
-      return;
-    }
-
+  const submitRegistration = async () => {
     setSubmitStatus('loading');
     try {
-      // Single call — creates the restaurant record for the first time
       const res = await api.post('/restaurants', {
         name: optionalString(form.name),
         legalEntity: optionalString(form.legalEntityName),
@@ -467,7 +438,6 @@ export default function RestaurantRegisterPage() {
       const restaurantId = res.data.id;
       setRegisteredRestaurantId(restaurantId);
 
-      // Upload documents (PAN, GST, FSSAI, BANK) now that we have the ID
       for (const { type, file } of [
         { type: 'PAN',   file: panFile   },
         { type: 'GST',   file: gstFile   },
@@ -485,7 +455,6 @@ export default function RestaurantRegisterPage() {
         } catch { /* non-fatal */ }
       }
 
-      // Upload cover photo if provided
       if (coverPhotoFile) {
         const fd = new FormData();
         fd.append('file', coverPhotoFile);
@@ -506,6 +475,48 @@ export default function RestaurantRegisterPage() {
       else if (code === 409) setServerError('A restaurant with this email, phone, or address already exists.');
       else setServerError('Could not register restaurant. Please check your inputs and try again.');
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setServerError('');
+
+    const allTouched = Object.keys(EMPTY_FORM).reduce(
+      (a, k) => ({ ...a, [k]: true }), {} as Record<keyof FormFields, boolean>,
+    );
+    setTouched(allTouched);
+    const errs = validate(form);
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    if (!reviewConfirmed) {
+      setServerError('Please confirm that you have reviewed all details before submitting.');
+      return;
+    }
+
+    if (form.gstPresent === 'yes' && !gstFile) {
+      setServerError('GST document upload is required. Please go back to step 2 and upload the GST document.');
+      return;
+    }
+    if (!panFile) {
+      setServerError('PAN card upload is required. Please go back to step 2 and upload the PAN card.');
+      return;
+    }
+    if (!fssaiFile) {
+      setServerError('FSSAI document upload is required. Please go back to step 2 and upload the FSSAI document.');
+      return;
+    }
+    if (!bankFile) {
+      setServerError('Bank document upload is required. Please go back to step 2 and upload the bank document.');
+      return;
+    }
+
+    setShowSubmitConfirm(true);
+  };
+
+  const confirmSubmit = () => {
+    setShowSubmitConfirm(false);
+    submitRegistration();
   };
 
   const MENU_SCAN_ACCEPT = 'image/*,.pdf,.xlsx,.xls,.csv';
@@ -662,10 +673,10 @@ export default function RestaurantRegisterPage() {
                     <input
                       {...p('ownerName')}
                       maxLength={100}
-                      onKeyDown={allowLettersSpaces}
+                      onKeyDown={allowNameCharacters}
                       onPaste={(e) => {
                         e.preventDefault();
-                        const cleaned = e.clipboardData.getData('text').replace(/[^a-zA-Z\s]/g, '').slice(0, 100);
+                        const cleaned = e.clipboardData.getData('text').replace(/[^a-zA-Z\s.'-]/g, '').slice(0, 100);
                         set('ownerName', cleaned);
                       }}
                     />
@@ -832,7 +843,7 @@ export default function RestaurantRegisterPage() {
                         />
                       </Field>
                       <Field label="GST Expiry Date" required error={errors.gstExpiryDate}>
-                        <input type="date" {...p('gstExpiryDate')} />
+                        <input type="date" min={new Date().toISOString().split('T')[0]} {...p('gstExpiryDate')} />
                       </Field>
                     </div>
                   )}
@@ -851,7 +862,7 @@ export default function RestaurantRegisterPage() {
                       />
                     </Field>
                     <Field label="FSSAI Expiry Date" required error={errors.fssaiExpiryDate}>
-                      <input type="date" {...p('fssaiExpiryDate')} />
+                      <input type="date" min={new Date().toISOString().split('T')[0]} {...p('fssaiExpiryDate')} />
                     </Field>
                   </div>
 
@@ -1109,12 +1120,12 @@ export default function RestaurantRegisterPage() {
                   <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-5 shadow-sm">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <h2 className="text-lg font-semibold text-[var(--tx)]">Upload menu file <span className="text-rose-500">*</span></h2>
-                        <p className="mt-1 text-sm text-[var(--tx-3)]">Upload an image, PDF (multi-page) or Excel/CSV to extract menu items automatically.</p>
-                        {!menuExtracted || menuExtracted.every(c => c.items.length === 0) ? (
-                          <p className="mt-1 text-xs text-rose-500">Menu is required. Upload a file and click Extract, or switch to Add manually.</p>
-                        ) : (
+                        <h2 className="text-lg font-semibold text-[var(--tx)]">Upload menu file</h2>
+                        <p className="mt-1 text-sm text-[var(--tx-3)]">Upload an image, PDF (multi-page) or Excel/CSV to extract menu items automatically. This step is optional.</p>
+                        {menuExtracted && menuExtracted.some(c => c.items.length > 0) ? (
                           <p className="mt-1 text-xs text-emerald-600">Menu extracted — {menuExtracted.reduce((n, c) => n + c.items.length, 0)} item(s) ready.</p>
+                        ) : (
+                          <p className="mt-1 text-xs text-[var(--tx-3)]">No extracted menu yet. You can submit without extracting a menu or switch to Add manually.</p>
                         )}
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1254,10 +1265,8 @@ export default function RestaurantRegisterPage() {
                 {menuMode === 'manual' && (
                   <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-5 space-y-5">
                     <div>
-                      <h2 className="text-lg font-semibold text-[var(--tx)]">Add menu items manually <span className="text-rose-500">*</span></h2>
-                      {(!menuExtracted || menuExtracted.every(c => c.items.length === 0)) && (
-                        <p className="mt-1 text-xs text-rose-500">At least one menu item is required before submitting.</p>
-                      )}
+                      <h2 className="text-lg font-semibold text-[var(--tx)]">Add menu items manually</h2>
+                      <p className="mt-1 text-xs text-[var(--tx-3)]">Optional — add menu items manually if you want, but you can submit without them.</p>
                     </div>
 
                     {/* Existing categories */}
@@ -1590,6 +1599,36 @@ export default function RestaurantRegisterPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="w-full max-w-xl rounded-3xl bg-[var(--surface)] p-8 shadow-2xl">
+            <h2 className="text-2xl font-semibold text-[var(--tx)]">Confirm submission</h2>
+            <p className="mt-3 text-sm text-[var(--tx-3)]">
+              You are about to submit this restaurant registration for super-admin review. This will send the details, uploaded documents, and optional menu information for approval.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={confirmSubmit}
+                className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-2)]"
+              >
+                Confirm and submit
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSubmitConfirm(false)}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-5 py-3 text-sm font-semibold text-[var(--tx-2)] transition hover:bg-[var(--surface-2)]"
+              >
+                Cancel
+              </button>
+            </div>
+            <p className="mt-4 text-xs text-[var(--tx-3)]">
+              If you need to change any details, cancel and review the form before submitting.
+            </p>
           </div>
         </div>
       )}
