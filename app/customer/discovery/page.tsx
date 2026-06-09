@@ -72,6 +72,46 @@ const CARD_GRADIENTS = [
   'linear-gradient(135deg,#1A0A00 0%,#3A1800 100%)',
 ];
 
+const FLASH_SALES = [
+  {
+    title: '60% OFF Biryani', restaurant: 'Paradise Kitchen',
+    originalPrice: 250, salePrice: 100, emoji: '🍛',
+    endsIn: 45 * 60, badge: '🔥 HOT',
+    gradient: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
+    glow: 'rgba(124,58,237,0.38)',
+  },
+  {
+    title: 'Buy 1 Get 1 Pizza', restaurant: 'Slice & Dice',
+    originalPrice: 320, salePrice: 160, emoji: '🍕',
+    endsIn: 23 * 60 + 18, badge: '⚡ LIMITED',
+    gradient: 'linear-gradient(135deg, #BE185D 0%, #9D174D 100%)',
+    glow: 'rgba(190,24,93,0.38)',
+  },
+  {
+    title: '40% OFF Combos', restaurant: 'Meal Wala',
+    originalPrice: 450, salePrice: 270, emoji: '🍱',
+    endsIn: 2 * 3600 + 12 * 60, badge: '🎯 DEAL',
+    gradient: 'linear-gradient(135deg, #0369A1 0%, #075985 100%)',
+    glow: 'rgba(3,105,161,0.38)',
+  },
+  {
+    title: 'Free Dessert + Meal', restaurant: 'Sweet Bites',
+    originalPrice: 380, salePrice: 199, emoji: '🍰',
+    endsIn: 58 * 60 + 40, badge: '🎂 SWEET',
+    gradient: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+    glow: 'rgba(5,150,105,0.38)',
+  },
+];
+
+function formatFlashTime(secs: number): string {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 const AI_TAGS = [
   'Most Loved Near You', 'Perfect for Tonight', 'Trending Now',
   "Editor's Choice", 'Top Rated', 'New & Hot',
@@ -380,7 +420,15 @@ export default function DiscoveryPage() {
   const [coords, setCoords]           = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [flashTimers, setFlashTimers] = useState<number[]>(FLASH_SALES.map((s) => s.endsIn));
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setFlashTimers((prev) => prev.map((t) => Math.max(0, t - 1)));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const name      = getCustomerName();
   const firstName = name?.split(' ')[0] ?? '';
@@ -1118,248 +1166,112 @@ export default function DiscoveryPage() {
               items={healthy}
             />
 
-            {/* ── AI PICKS — Polaroid + Stacked Fanned Cards ────────────── */}
+            {/* ── FLASH SALES ───────────────────────────────────────────────── */}
             <section className="px-4 sm:px-6">
-
-              {/* Section header */}
-              <div className="mb-8 flex items-center justify-between">
+              <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'var(--accent)' }}>
-                    ✦ AI-Powered
-                  </p>
-                  <h2 className="mt-1 text-xl font-black" style={{ color: 'var(--tx)' }}>
-                    Personalised just for you
-                  </h2>
-                  <p className="mt-0.5 text-xs" style={{ color: 'var(--tx-3)' }}>
-                    Based on your taste profile &amp; past orders
-                  </p>
+                  <h2 className="text-xl font-black" style={{ color: 'var(--tx)' }}>Flash Sales</h2>
+                  <p className="mt-0.5 text-xs" style={{ color: 'var(--tx-3)' }}>⚡ Limited time — grab before they&apos;re gone!</p>
+                </div>
+                <div
+                  className="flex items-center gap-2 rounded-2xl px-3 py-1.5"
+                  style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}
+                >
+                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-xs font-black" style={{ color: '#ef4444' }}>LIVE</span>
                 </div>
               </div>
 
-              {/* Two-column layout */}
-              <div className="grid grid-cols-1 items-center gap-10 sm:grid-cols-2">
+              <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide scroll-touch">
+                {FLASH_SALES.map((sale, i) => {
+                  const remaining = flashTimers[i] ?? sale.endsIn;
+                  const urgent = remaining < 120;
+                  return (
+                    <motion.div
+                      key={i}
+                      whileHover={{ scale: 1.03, y: -5 }}
+                      className="shrink-0 w-64 relative overflow-hidden rounded-3xl cursor-pointer"
+                      style={{ background: sale.gradient, boxShadow: `0 8px 30px ${sale.glow}` }}
+                    >
+                      {/* Dot-grid texture */}
+                      <div
+                        className="pointer-events-none absolute inset-0 opacity-15"
+                        style={{
+                          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.14) 1px, transparent 1px)',
+                          backgroundSize: '16px 16px',
+                        }}
+                      />
+                      {/* Glow orb */}
+                      <div
+                        className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-25 blur-2xl"
+                        style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.7) 0%, transparent 70%)' }}
+                      />
 
-                {/* ── LEFT: Big polaroid featured card ── */}
-                <div className="flex justify-center sm:justify-start">
-                  {restaurants[0] && (() => {
-                    const r = restaurants[0];
-                    const id = r.branchId ?? r.id;
-                    return (
-                      <Link href={`/customer/restaurants/${id}`} className="no-underline inline-block">
-                        <motion.div
-                          initial={{ rotate: -2 }}
-                          animate={{ rotate: -2 }}
-                          whileHover={{ rotate: 0, scale: 1.03, y: -10 }}
-                          transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-                          className="inline-block relative"
-                          style={{
-                            background: '#fefefe',
-                            padding: '10px 10px 40px',
-                            borderRadius: 4,
-                            boxShadow: '0 16px 56px rgba(0,0,0,0.22), 0 4px 16px rgba(0,0,0,0.1)',
-                            width: 280,
-                          }}
+                      <div className="relative p-5 space-y-3">
+                        {/* Header row */}
+                        <div className="flex items-center justify-between">
+                          <span
+                            className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider"
+                            style={{ background: 'rgba(255,255,255,0.22)', color: 'white', backdropFilter: 'blur(8px)' }}
+                          >
+                            {sale.badge}
+                          </span>
+                          <span className="text-3xl">{sale.emoji}</span>
+                        </div>
+
+                        {/* Title + restaurant */}
+                        <div>
+                          <p className="text-lg font-black text-white leading-tight">{sale.title}</p>
+                          <p className="mt-0.5 text-xs" style={{ color: 'rgba(255,255,255,0.62)' }}>{sale.restaurant}</p>
+                        </div>
+
+                        {/* Price row */}
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-black text-white">₹{sale.salePrice}</span>
+                          <span className="text-sm line-through" style={{ color: 'rgba(255,255,255,0.48)' }}>₹{sale.originalPrice}</span>
+                          <span
+                            className="text-[10px] font-black rounded-full px-2 py-0.5 text-white"
+                            style={{ background: 'rgba(255,255,255,0.22)' }}
+                          >
+                            {Math.round((1 - sale.salePrice / sale.originalPrice) * 100)}% off
+                          </span>
+                        </div>
+
+                        {/* Countdown timer */}
+                        <div
+                          className="flex items-center gap-2 rounded-2xl px-3 py-2.5"
+                          style={{ background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(8px)' }}
                         >
-                          {/* Tape strips */}
-                          <div style={{
-                            position: 'absolute', top: -11, left: 28, width: 56, height: 18,
-                            background: 'rgba(255,232,40,0.72)', borderRadius: 2,
-                            transform: 'rotate(-12deg)',
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.14)',
-                          }} />
-                          <div style={{
-                            position: 'absolute', top: -11, right: 28, width: 56, height: 18,
-                            background: 'rgba(255,232,40,0.72)', borderRadius: 2,
-                            transform: 'rotate(12deg)',
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.14)',
-                          }} />
-
-                          {/* Image */}
-                          <div style={{ height: 220, borderRadius: 2, overflow: 'hidden', background: CARD_GRADIENTS[0] }}>
-                            {r.imageUrl ? (
-                              <img src={resolveMediaUrl(r.imageUrl)} alt={r.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72 }}>🍽️</div>
-                            )}
-                          </div>
-
-                          {/* Caption row */}
-                          <div style={{ paddingTop: 12, paddingLeft: 4, paddingRight: 4, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
-                            <p style={{ fontSize: 18, fontWeight: 900, color: '#111827', margin: 0, lineHeight: 1.25, fontFamily: 'Georgia, serif', flex: 1 }}>
-                              {r.name}
-                            </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
-                              {r.rating != null && (
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#166534', background: '#dcfce7', borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>
-                                  ★ {r.rating.toFixed(1)}
-                                </span>
-                              )}
-                              <div style={{
-                                width: 34, height: 34, borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #14532d, #166534)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: 16, color: 'white',
-                                boxShadow: '0 4px 12px rgba(21,101,48,0.45)',
-                              }}>🛒</div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      </Link>
-                    );
-                  })()}
-                </div>
-
-                {/* ── RIGHT: Stacked fanned cards ── */}
-                <div className="flex items-center justify-center" style={{ minHeight: 340 }}>
-                  <div style={{ position: 'relative', width: 240, height: 320 }}>
-                    {restaurants.slice(1, 4).map((r, i) => {
-                      const id = r.branchId ?? r.id;
-                      const rotDegs  = [-16, -5, 8];
-                      const xOffsets = [-26, -6, 16];
-                      const yOffsets = [20, 8, -8];
-                      return (
-                        <Link
-                          key={id ?? i}
-                          href={`/customer/restaurants/${id}`}
-                          className="no-underline block"
-                          style={{
-                            position: 'absolute', left: '50%', top: '50%',
-                            marginLeft: -100, marginTop: -140,
-                            zIndex: i + 1,
-                          }}
-                        >
-                          <motion.div
-                            initial={{ rotate: rotDegs[i], x: xOffsets[i], y: yOffsets[i] }}
-                            animate={{ rotate: rotDegs[i], x: xOffsets[i], y: yOffsets[i] }}
-                            whileHover={{ rotate: 0, x: 0, y: -20, scale: 1.06 }}
-                            transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+                          <span className="text-sm">⏱</span>
+                          <span className="text-xs font-bold text-white">Ends in</span>
+                          <span
+                            className="text-sm font-black"
                             style={{
-                              width: 200, borderRadius: 20, overflow: 'hidden',
-                              background: 'white',
-                              boxShadow: '0 12px 40px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.1)',
-                              cursor: 'pointer',
-                              position: 'relative',
+                              color: urgent ? '#fca5a5' : '#fde68a',
+                              fontVariantNumeric: 'tabular-nums',
+                              fontFamily: 'ui-monospace, monospace',
+                              letterSpacing: '0.04em',
                             }}
                           >
-                            {/* Sale badge */}
-                            <div style={{
-                              position: 'absolute', top: 10, left: 10, zIndex: 2,
-                              background: 'rgba(21,101,48,0.92)', backdropFilter: 'blur(8px)',
-                              borderRadius: 999, padding: '4px 12px',
-                              fontSize: 11, fontWeight: 800, color: '#dcfce7',
-                            }}>Sale</div>
-
-                            {/* Image */}
-                            <div style={{ height: 160, overflow: 'hidden', background: CARD_GRADIENTS[(i + 1) % CARD_GRADIENTS.length] }}>
-                              {r.imageUrl ? (
-                                <img src={resolveMediaUrl(r.imageUrl)} alt={r.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              ) : (
-                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 52 }}>🍽️</div>
-                              )}
-                            </div>
-
-                            {/* Card body */}
-                            <div style={{ padding: '12px 14px 14px', background: 'white' }}>
-                              <p style={{ fontSize: 13, fontWeight: 800, color: '#111827', margin: 0, lineHeight: 1.3 }}>
-                                {r.name.length > 24 ? `${r.name.slice(0, 24)}…` : r.name}
-                              </p>
-                              {r.rating != null && (
-                                <p style={{ fontSize: 11, color: '#6b7280', margin: '4px 0 0', fontWeight: 600 }}>
-                                  ★ {r.rating.toFixed(1)}{r.deliveryTime ? ` · ${r.deliveryTime} min` : ''}
-                                </p>
-                              )}
-                              <div style={{
-                                marginTop: 10,
-                                background: 'linear-gradient(135deg, #14532d, #166534)',
-                                borderRadius: 11, padding: '9px 0',
-                                fontSize: 12, fontWeight: 900, color: 'white',
-                                boxShadow: '0 4px 12px rgba(21,101,48,0.38)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-                              }}>
-                                <span style={{
-                                  width: 24, height: 24, borderRadius: 999,
-                                  background: 'rgba(255,255,255,0.18)',
-                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                }}>−</span>
-                                <span>Add To Cart</span>
-                                <span style={{
-                                  width: 24, height: 24, borderRadius: 999,
-                                  background: 'rgba(255,255,255,0.18)',
-                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                }}>+</span>
-                              </div>
-                            </div>
-                          </motion.div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-
-              </div>
-            </section>
-
-            {/* ── REWARDS CARD ──────────────────────────────────────────────── */}
-            <section className="px-4 sm:px-6">
-              <div
-                className="relative overflow-hidden rounded-3xl"
-                style={{
-                  background: 'linear-gradient(135deg, #78350F 0%, #92400E 35%, #B45309 65%, #D97706 100%)',
-                  boxShadow: '0 10px 36px rgba(217,119,6,0.32)',
-                }}
-              >
-                {/* Texture */}
-                <div
-                  className="pointer-events-none absolute inset-0 opacity-20"
-                  style={{
-                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px)',
-                    backgroundSize: '20px 20px',
-                  }}
-                />
-                {/* Glow orb */}
-                <div
-                  className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full opacity-30 blur-2xl"
-                  style={{ background: 'radial-gradient(circle, #FDE68A 0%, transparent 70%)' }}
-                />
-                <div className="relative flex items-center justify-between p-6">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-4xl"
-                      style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)' }}
-                    >
-                      🏆
-                    </div>
-                    <div>
-                      <p className="text-base font-black text-white">Earn Reward Points</p>
-                      <p className="mt-0.5 text-xs" style={{ color: 'rgba(255,255,255,0.65)' }}>
-                        Order more, earn more. Redeem on every order.
-                      </p>
-                      <div className="mt-3 flex items-center gap-3">
-                        <div
-                          className="h-1.5 w-32 overflow-hidden rounded-full"
-                          style={{ background: 'rgba(255,255,255,0.22)' }}
-                        >
-                          <div className="h-full w-[8%] rounded-full" style={{ background: 'rgba(255,255,255,0.8)' }} />
+                            {formatFlashTime(remaining)}
+                          </span>
                         </div>
-                        <span className="text-[10px] font-bold" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                          0 / 500 pts
-                        </span>
+
+                        {/* CTA */}
+                        <button
+                          className="w-full rounded-2xl py-2.5 text-sm font-black text-white transition hover:opacity-90"
+                          style={{
+                            background: 'rgba(255,255,255,0.20)',
+                            backdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(255,255,255,0.28)',
+                          }}
+                        >
+                          Order Now →
+                        </button>
                       </div>
-                    </div>
-                  </div>
-                  <Link
-                    href="/customer/payments"
-                    className="shrink-0 rounded-2xl px-4 py-2.5 text-xs font-black no-underline transition hover:opacity-90"
-                    style={{
-                      background: 'rgba(255,255,255,0.22)',
-                      color: 'white',
-                      backdropFilter: 'blur(8px)',
-                      border: '1px solid rgba(255,255,255,0.32)',
-                    }}
-                  >
-                    Start Earning
-                  </Link>
-                </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             </section>
           </>

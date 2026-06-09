@@ -9,8 +9,10 @@ type OrderItem = {
   id: string;
   name: string;
   quantity: number;
-  price: number;
-  addons?: { name: string; price: number }[];
+  unitPrice: number;
+  itemTotal?: number;
+  selectedAddons?: { name: string; price: number }[];
+  specialNote?: string;
 };
 
 type HistoryEntry = {
@@ -19,23 +21,36 @@ type HistoryEntry = {
   note?: string;
 };
 
+type AddressSnapshot = {
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  landmark?: string;
+};
+
 type OrderDetail = {
   id: string;
   status: string;
   orderNumber?: string;
   subtotal?: number;
   deliveryFee?: number;
-  discount?: number;
+  packagingFee?: number;
+  taxAmount?: number;
+  couponDiscount?: number;
+  grandTotal?: number;
   specialInstructions?: string;
   paymentMethod?: string;
+  paymentStatus?: string;
+  couponCode?: string;
   restaurant?: { name?: string; id?: string } | string;
-  branch?: { name?: string } | string;
+  branch?: { name?: string; id?: string } | string;
   customer?: { name?: string; email?: string; phone?: string; id?: string };
-  deliveryAddress?: string | { addressLine1?: string; city?: string; state?: string; pincode?: string };
+  deliveryAddressSnapshot?: AddressSnapshot | string;
   items?: OrderItem[];
-  history?: HistoryEntry[];
-  createdAt: string;
-  totalAmount?: number;
+  statusHistory?: HistoryEntry[];
+  createdAt: string | Date;
 };
 
 // ── Status config ──────────────────────────────────────────────────────────────
@@ -97,10 +112,18 @@ const ACTION_BANNER: Record<string, { bg: string; border: string; text: string; 
   },
 };
 
-function formatAddress(address: OrderDetail['deliveryAddress']) {
+function formatAddress(address: AddressSnapshot | string | undefined | null) {
   if (!address) return '—';
   if (typeof address === 'string') return address;
-  return `${address.addressLine1 ?? ''}${address.city ? `, ${address.city}` : ''}${address.state ? `, ${address.state}` : ''}${address.pincode ? ` ${address.pincode}` : ''}`.trim();
+  const parts = [
+    address.addressLine1,
+    address.addressLine2,
+    address.city,
+    address.state,
+    address.pincode,
+    address.landmark ? `(${address.landmark})` : undefined,
+  ].filter(Boolean);
+  return parts.join(', ') || '—';
 }
 
 // ── Action panel ───────────────────────────────────────────────────────────────
@@ -197,7 +220,10 @@ export default function RestaurantOrderDetailPage() {
     if (!orderId) return;
     setLoading(true);
     restaurantOrdersApi.get(orderId)
-      .then(({ data }) => setOrder(data))
+      .then(({ data }) => {
+        const raw = data?.order ?? data?.data ?? data;
+        setOrder(raw);
+      })
       .catch(() => setError('Failed to load order details.'))
       .finally(() => setLoading(false));
   }, [orderId]);
@@ -218,8 +244,39 @@ export default function RestaurantOrderDetailPage() {
     );
   }
 
-  const restaurantName = typeof order.restaurant === 'string' ? order.restaurant : order.restaurant?.name ?? '—';
-  const branchName     = typeof order.branch     === 'string' ? order.branch     : order.branch?.name     ?? '—';
+  const raw = order as any;
+
+  // Restaurant name — backend may use nested object or flat string fields
+  const restaurantName =
+    (typeof order.restaurant === 'string' ? order.restaurant : order.restaurant?.name) ||
+    raw.restaurantName || raw.restaurantLabel || raw.restaurant_name || '—';
+
+  // Branch name
+  const branchName =
+    (typeof order.branch === 'string' ? order.branch : order.branch?.name) ||
+    raw.branchName || raw.branchLabel || raw.branch_name || '—';
+
+  // Customer fields
+  const customerName  = order.customer?.name  || raw.customerName  || raw.customer_name  || '—';
+  const customerPhone = order.customer?.phone || raw.customerPhone || raw.customer_phone || '';
+  const customerEmail = order.customer?.email || raw.customerEmail || raw.customer_email || '';
+  const customerContact = customerPhone || customerEmail || '—';
+
+  // Items — backend may use orderItems, order_items, or items
+  const orderItems: OrderItem[] = order.items ?? raw.orderItems ?? raw.order_items ?? [];
+
+  // Total
+  const totalAmount = order.grandTotal ?? raw.grandTotal ?? raw.totalAmount ?? raw.amount ?? 0;
+
+  // Subtotal / fees / discount
+  const subtotal    = order.subtotal    ?? raw.sub_total    ?? 0;
+  const deliveryFee = order.deliveryFee ?? raw.delivery_fee ?? 0;
+  const discount    = order.couponDiscount ?? raw.couponDiscount ?? raw.discount ?? raw.discount_amount ?? 0;
+
+  // Delivery address — backend stores it as deliveryAddressSnapshot
+  const deliveryAddr: AddressSnapshot | string | undefined =
+    order.deliveryAddressSnapshot ?? raw.deliveryAddress ?? raw.address ?? raw.delivery_address;
+
   const pillCls = STATUS_PILL[order.status] ?? 'bg-slate-100 text-slate-600 border-slate-200';
 
   return (
@@ -252,10 +309,10 @@ export default function RestaurantOrderDetailPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl bg-white p-5 shadow-sm">
             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">Customer</p>
-            <p className="font-semibold text-slate-900">{order.customer?.name ?? '—'}</p>
-            <p className="mt-0.5 text-sm text-slate-500">{order.customer?.phone ?? order.customer?.email ?? '—'}</p>
-            {order.customer?.email && order.customer?.phone && (
-              <p className="text-sm text-slate-400">{order.customer.email}</p>
+            <p className="font-semibold text-slate-900">{customerName}</p>
+            <p className="mt-0.5 text-sm text-slate-500">{customerContact}</p>
+            {customerEmail && customerPhone && (
+              <p className="text-sm text-slate-400">{customerEmail}</p>
             )}
           </div>
           <div className="rounded-2xl bg-white p-5 shadow-sm">
@@ -279,10 +336,10 @@ export default function RestaurantOrderDetailPage() {
         {/* ── Items ── */}
         <div className="rounded-2xl bg-white p-5 shadow-sm">
           <p className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">Order Items</p>
-          {order.items && order.items.length > 0 ? (
+          {orderItems.length > 0 ? (
             <div className="space-y-3">
-              {order.items.map((item) => (
-                <div key={item.id} className="flex items-start justify-between gap-3 border-b border-slate-50 pb-3 last:border-0 last:pb-0">
+              {orderItems.map((item, idx) => (
+                <div key={item.id ?? idx} className="flex items-start justify-between gap-3 border-b border-slate-50 pb-3 last:border-0 last:pb-0">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
@@ -290,13 +347,18 @@ export default function RestaurantOrderDetailPage() {
                       </span>
                       <p className="font-medium text-slate-900">{item.name}</p>
                     </div>
-                    {item.addons && item.addons.length > 0 && (
+                    {item.selectedAddons && item.selectedAddons.length > 0 && (
                       <p className="ml-8 mt-0.5 text-xs text-slate-400">
-                        + {item.addons.map((a) => a.name).join(', ')}
+                        + {item.selectedAddons.map((a) => a.name).join(', ')}
                       </p>
                     )}
+                    {item.specialNote && (
+                      <p className="ml-8 mt-0.5 text-xs text-amber-600">Note: {item.specialNote}</p>
+                    )}
                   </div>
-                  <p className="shrink-0 font-medium text-slate-700">₹{(item.price * item.quantity).toFixed(2)}</p>
+                  <p className="shrink-0 font-medium text-slate-700">
+                    ₹{Number(item.itemTotal ?? item.unitPrice * item.quantity).toFixed(2)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -305,23 +367,23 @@ export default function RestaurantOrderDetailPage() {
           )}
 
           <div className="mt-4 space-y-2 border-t border-slate-100 pt-4 text-sm">
-            {order.subtotal != null && (
+            {subtotal > 0 && (
               <div className="flex justify-between text-slate-600">
-                <span>Subtotal</span><span>₹{Number(order.subtotal).toFixed(2)}</span>
+                <span>Subtotal</span><span>₹{Number(subtotal).toFixed(2)}</span>
               </div>
             )}
-            {order.deliveryFee != null && (
+            {deliveryFee > 0 && (
               <div className="flex justify-between text-slate-600">
-                <span>Delivery Fee</span><span>₹{Number(order.deliveryFee).toFixed(2)}</span>
+                <span>Delivery Fee</span><span>₹{Number(deliveryFee).toFixed(2)}</span>
               </div>
             )}
-            {order.discount != null && order.discount > 0 && (
+            {discount > 0 && (
               <div className="flex justify-between text-rose-600">
-                <span>Discount</span><span>−₹{Number(order.discount).toFixed(2)}</span>
+                <span>Discount</span><span>−₹{Number(discount).toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between border-t border-slate-100 pt-3 font-semibold text-slate-900">
-              <span>Total</span><span>₹{Number(order.totalAmount ?? 0).toFixed(2)}</span>
+              <span>Total</span><span>₹{Number(totalAmount).toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -329,16 +391,16 @@ export default function RestaurantOrderDetailPage() {
         {/* ── Delivery address ── */}
         <div className="rounded-2xl bg-white p-5 shadow-sm">
           <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">Delivery Address</p>
-          <p className="text-sm text-slate-700">{formatAddress(order.deliveryAddress)}</p>
+          <p className="text-sm text-slate-700">{formatAddress(deliveryAddr)}</p>
         </div>
 
         {/* ── Timeline ── */}
-        {order.history && order.history.length > 0 && (
+        {order.statusHistory && order.statusHistory.length > 0 && (
           <div className="rounded-2xl bg-white p-5 shadow-sm">
             <p className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">Order Timeline</p>
             <ol className="relative ml-3 space-y-5 border-l border-slate-200">
-              {order.history.map((entry, i) => (
-                <li key={i} className="relative ml-5">
+              {order.statusHistory.map((entry, i) => (
+                <li key={i} className="relative ml-5 pl-2">
                   <TimelineDot status={entry.status} />
                   <p className="text-sm font-semibold text-slate-900">{entry.status.replace(/_/g, ' ')}</p>
                   {entry.note && <p className="text-sm text-slate-500">{entry.note}</p>}

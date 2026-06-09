@@ -155,12 +155,12 @@ function SidebarInner({ userRole, roleLabel, email, displayName, initials, pathn
               }}
             >
               {/* Sidebar-specific logo: trimmed transparent icon that fills the box */}
-              <Image src="/photo3_trimmed.PNG" alt="Foodeez" width={56} height={56} className="h-full w-full object-contain" />
+              <Image src="/photo3_trimmed.PNG" alt="Foodeez" width={64} height={64} className="h-full w-full object-contain" />
             </div>
 
           <div>
             {/* Replace text with photo2 image for sidebar branding */}
-            <Image src="/photo2.PNG" alt="Foodeez" width={92} height={20} className="object-contain" />
+            <Image src="/photo2.PNG" alt="Foodeez" width={92} height={20} className="h-auto w-auto object-contain" />
             {/* Role pill */}
             <span className={`mt-1 inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${rolePillCls}`}>
               {roleLabel}
