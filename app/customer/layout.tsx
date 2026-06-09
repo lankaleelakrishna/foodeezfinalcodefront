@@ -174,144 +174,114 @@ function CustomerLayoutInner({ children }: { children: React.ReactNode }) {
           boxShadow: scrolled ? '0 2px 24px rgba(0,0,0,0.08)' : 'none',
         }}
       >
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
+        {/* single row — everything h-10 baseline */}
+        <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 sm:px-6">
 
           {/* Logo */}
           <Link href="/customer/discovery" className="shrink-0 transition-opacity hover:opacity-80">
-            <img
-              src="/foodeez-sidebar-logo.png"
-              alt="FooDeeZ"
-              className="h-12 w-auto object-contain"
-            />
+            <img src="/foodeez-sidebar-logo.png" alt="FooDeeZ" className="h-10 w-auto object-contain" />
           </Link>
 
-          {/* Location chip — sm+ */}
+          {/* Location chip */}
           <button
-            className="hidden sm:flex items-center gap-1.5 shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all hover:opacity-75"
-            style={{
-              background: 'var(--surface-2)',
-              color: 'var(--tx-2)',
-              border: '1px solid var(--border)',
-            }}
+            className="hidden sm:flex items-center gap-1.5 shrink-0 rounded-full px-3 h-9 text-xs font-semibold transition-all hover:opacity-75"
+            style={{ background: 'var(--surface-2)', color: 'var(--tx-2)', border: '1px solid var(--border)' }}
           >
             <IconPin />
             <span>Hyderabad</span>
             <IconChevronDown />
           </button>
 
-          {/* Search slot — md+ (decorative, routes to discovery) */}
+          {/* Search bar — grows to fill available space */}
           <Link
             href="/customer/discovery"
-            className="hidden md:flex flex-1 max-w-md items-center gap-2.5 rounded-xl px-4 py-2 transition-all hover:border-[color:var(--accent)]"
-            style={{
-              background: 'var(--surface-2)',
-              border: '1px solid var(--border)',
-            }}
+            className="hidden md:flex flex-1 items-center gap-2.5 rounded-full h-9 px-4 transition-all"
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', maxWidth: 420 }}
           >
-            <span style={{ color: 'var(--tx-3)' }}><IconSearch /></span>
-            <span className="text-xs font-medium" style={{ color: 'var(--tx-3)' }}>
+            <span style={{ color: 'var(--tx-3)', flexShrink: 0 }}><IconSearch /></span>
+            <span className="text-xs font-medium truncate" style={{ color: 'var(--tx-3)' }}>
               Restaurants, dishes, cuisines…
             </span>
           </Link>
 
-          {/* Spacer on mobile */}
-          <div className="flex-1 md:hidden" />
+          {/* Push right section to end */}
+          <div className="flex-1" />
 
-          {/* ── Right actions ──────────────────────────────────────────────── */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* ── Nav links ── */}
+          <nav
+            className="hidden sm:flex items-center rounded-full p-1 gap-0.5"
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+          >
+            {NAV_ITEMS.map(({ href, label, Icon }) => {
+              const active =
+                href === '/customer/discovery'
+                  ? pathname === '/customer/discovery' || pathname === '/customer'
+                  : pathname.startsWith(href);
+              const isCart = label === 'Cart';
+              return (
+                <Link key={href} href={href} className="no-underline">
+                  <motion.div
+                    whileTap={{ scale: 0.92 }}
+                    className="relative flex items-center gap-1.5 rounded-full px-4 h-8 transition-colors duration-150"
+                    style={{
+                      background: active ? 'var(--accent)' : 'transparent',
+                      color: active ? '#fff' : 'var(--tx-2)',
+                    }}
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <Icon filled={active} />
+                      {isCart && cartCount > 0 && (
+                        <motion.span
+                          key={cartCount}
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+                          className="absolute -right-2 -top-2 flex items-center justify-center rounded-full text-[7px] font-black leading-none"
+                          style={{ background: active ? '#fff' : 'var(--accent)', color: active ? 'var(--accent)' : '#fff', minWidth: '0.9rem', height: '0.9rem', padding: '0 2px' }}
+                        >
+                          {cartCount > 9 ? '9+' : cartCount}
+                        </motion.span>
+                      )}
+                    </div>
+                    <span className="text-xs font-semibold">{label}</span>
+                  </motion.div>
+                </Link>
+              );
+            })}
+          </nav>
 
+          {/* Divider */}
+          <div className="hidden sm:block h-6 w-px mx-1" style={{ background: 'var(--border)' }} />
+
+          {/* ── Right actions ── */}
+          <div className="flex items-center gap-1.5">
             {/* Notification bell */}
             <button
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl transition hover:opacity-75"
-              style={{
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-                color: 'var(--tx-2)',
-              }}
+              className="relative flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-75"
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--tx-2)' }}
             >
               <IconBell />
-              <span
-                className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full"
-                style={{
-                  background: '#EF4444',
-                  boxShadow: '0 0 0 1.5px var(--bg)',
-                }}
-              />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: '#EF4444', boxShadow: '0 0 0 1.5px var(--bg)' }} />
             </button>
 
-            {/* Cart */}
-            <Link
-              href="/customer/cart"
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl transition hover:opacity-75"
-              style={{
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-                color: 'var(--tx-2)',
-              }}
-            >
-              <IconCart />
-              {cartCount > 0 && (
-                <motion.span
-                  key={cartCount}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-                  className="absolute -right-1.5 -top-1.5 flex items-center justify-center rounded-full text-[8px] font-black leading-none"
-                  style={{
-                    background: 'var(--accent)',
-                    color: 'white',
-                    minWidth: '1.15rem',
-                    height: '1.15rem',
-                    padding: '0 3px',
-                  }}
-                >
-                  {cartCount > 9 ? '9+' : cartCount}
-                </motion.span>
-              )}
-            </Link>
-
             {/* Avatar / dropdown */}
-            <div
-              className="relative"
-              onMouseEnter={() => setProfileMenuOpen(true)}
-              onMouseLeave={() => setProfileMenuOpen(false)}
-            >
+            <div className="relative" onMouseEnter={() => setProfileMenuOpen(true)} onMouseLeave={() => setProfileMenuOpen(false)}>
               <button
                 type="button"
                 title="Account menu"
-                className="h-9 w-9 rounded-xl flex items-center justify-center transition hover:opacity-80 shrink-0"
-                style={{
-                  background: 'linear-gradient(135deg, var(--accent-2) 0%, var(--accent) 100%)',
-                  color: 'white',
-                  boxShadow: '0 2px 8px var(--accent-muted)',
-                }}
+                className="h-9 w-9 rounded-full flex items-center justify-center transition hover:opacity-80 shrink-0"
+                style={{ background: 'linear-gradient(135deg, var(--accent-2) 0%, var(--accent) 100%)', color: 'white', boxShadow: '0 2px 8px var(--accent-muted)' }}
               >
                 <IconUser />
               </button>
 
               <div
-                className={`absolute right-0 top-full z-20 mt-2 w-36 overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl transition-all duration-200 ${profileMenuOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'}`}
+                className={`absolute right-0 top-full z-20 mt-2 w-36 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl transition-all duration-200 ${profileMenuOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'}`}
                 style={{ backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)' }}
               >
-                <Link
-                  href="/customer/profile"
-                  className="block px-4 py-3 text-sm font-semibold text-[var(--tx)] transition hover:bg-[var(--surface-2)]"
-                >
-                  Profile
-                </Link>
-                <Link
-                  href="/customer/orders"
-                  className="block px-4 py-3 text-sm font-semibold text-[var(--tx)] transition hover:bg-[var(--surface-2)]"
-                >
-                  Orders
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-3 text-sm font-semibold text-[var(--tx)] transition hover:bg-[var(--surface-2)]"
-                >
-                  Logout
-                </button>
+                <Link href="/customer/profile" className="block px-4 py-3 text-sm font-semibold text-[var(--tx)] transition hover:bg-[var(--surface-2)]">Profile</Link>
+                <Link href="/customer/orders" className="block px-4 py-3 text-sm font-semibold text-[var(--tx)] transition hover:bg-[var(--surface-2)]">Orders</Link>
+                <button type="button" onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm font-semibold text-[var(--tx)] transition hover:bg-[var(--surface-2)]">Logout</button>
               </div>
             </div>
           </div>
@@ -319,90 +289,9 @@ function CustomerLayoutInner({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* ── Page content ───────────────────────────────────────────────────── */}
-      <main className="pb-28">
+      <main className="pb-6">
         {children}
       </main>
-
-      {/* ── PREMIUM FLOATING BOTTOM NAV ─────────────────────────────────────── */}
-      <motion.nav
-        className="fixed inset-x-0 bottom-4 z-50 flex justify-center"
-        initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', damping: 22, stiffness: 200, delay: 0.2 }}
-      >
-        <div
-          className="w-max flex items-center gap-0.5 rounded-full px-2 py-1.5"
-          style={{
-            background: 'color-mix(in srgb, var(--surface) 94%, transparent)',
-            backdropFilter: 'blur(32px)',
-            WebkitBackdropFilter: 'blur(32px)',
-            border: '1px solid color-mix(in srgb, var(--border) 80%, transparent)',
-            boxShadow: '0 8px 40px rgba(0,0,0,0.24), 0 2px 8px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.06)',
-          }}
-        >
-          {NAV_ITEMS.map(({ href, label, Icon }) => {
-            const active =
-              href === '/customer/discovery'
-                ? pathname === '/customer/discovery' || pathname === '/customer'
-                : pathname.startsWith(href);
-            const isCart = label === 'Cart';
-
-            return (
-              <Link key={href} href={href} className="no-underline">
-                <motion.div
-                  whileTap={{ scale: 0.80 }}
-                  className="relative flex flex-col items-center justify-center gap-0.5 rounded-full transition-colors duration-200"
-                  style={{
-                    background: active
-                      ? 'color-mix(in srgb, var(--accent) 14%, var(--surface))'
-                      : 'transparent',
-                    color: active ? 'var(--accent)' : 'var(--tx-3)',
-                    minWidth: 54,
-                    padding: '7px 8px',
-                  }}
-                >
-                  {/* Icon with optional cart badge */}
-                  <div className="relative">
-                    <Icon filled={active} />
-                    {isCart && cartCount > 0 && (
-                      <motion.span
-                        key={cartCount}
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-                        className="absolute -right-1 -top-1 flex items-center justify-center rounded-full text-[7px] font-black leading-none"
-                        style={{
-                          background: 'var(--accent)',
-                          color: 'white',
-                          minWidth: '0.9rem',
-                          height: '0.9rem',
-                          padding: '0 2px',
-                        }}
-                      >
-                        {cartCount > 9 ? '9+' : cartCount}
-                      </motion.span>
-                    )}
-                  </div>
-
-                  <span className="text-[9px] font-semibold leading-none tracking-wide">
-                    {label}
-                  </span>
-
-                  {/* Active indicator dot */}
-                  {active && (
-                    <motion.div
-                      layoutId="nav-indicator"
-                      className="absolute -bottom-0.5 h-[3px] w-4 rounded-full"
-                      style={{ background: 'var(--accent)' }}
-                      transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-                    />
-                  )}
-                </motion.div>
-              </Link>
-            );
-          })}
-        </div>
-      </motion.nav>
     </div>
   );
 }

@@ -708,20 +708,10 @@ export default function AdminRestaurantsPage() {
                                     <button
                                       type="button"
                                       disabled={docVerifyLoading === doc.id}
-                                      onClick={async () => {
-                                        if (!selectedRestaurant) return;
-                                        setDocVerifyLoading(doc.id);
-                                        try {
-                                          await documentsApi.updateStatus(selectedRestaurant.id, doc.id, 'pending');
-                                          await fetchDocuments(selectedRestaurant.id);
-                                        } catch (err: any) {
-                                          const msg = err?.response?.data?.message || 'Failed to update document.';
-                                          alert(Array.isArray(msg) ? msg.join(' ') : msg);
-                                        } finally { setDocVerifyLoading(null); }
-                                      }}
+                                      onClick={() => setDocRejectModal(doc)}
                                       className="flex-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60 transition"
                                     >
-                                      {docVerifyLoading === doc.id ? 'Moving…' : 'Reject'}
+                                      Reject
                                     </button>
                                   </div>
                                 )}

@@ -1,17 +1,22 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  customerDiscoveryApi, customerCartApi, customerOrdersApi, resolveMediaUrl, AddToCartPayload,
+  Search, SlidersHorizontal, ChevronDown, ShoppingCart, X, Plus, Minus,
+  Star, Clock, Truck, Tag, Heart, ArrowLeft, Leaf, Flame, Zap,
+} from 'lucide-react';
+import {
+  customerDiscoveryApi, customerCartApi, customerOrdersApi,
+  resolveMediaUrl, AddToCartPayload,
 } from '../../../../lib/api';
 import {
   getCustomerToken, clearCustomerTokens, isCustomerTokenValid,
 } from '../../../../lib/customer-auth';
 import { useCartContext } from '../../cart-context';
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 type Addon = { id: string; name: string; price: number; isRequired: boolean };
 type PricingRule = {
@@ -36,93 +41,125 @@ type RestaurantInfo = {
   name: string; cuisine?: string; rating?: number;
   deliveryTime?: number; deliveryFee?: number; imageUrl?: string;
 };
+type SortKey = 'popularity' | 'price-low' | 'price-high' | 'rating';
+type VegFilter = 'all' | 'veg' | 'nonveg';
 
-// ── Design-system constants (CSS-variable-driven for light+dark support) ───
+// ── Design tokens ──────────────────────────────────────────────────────────────
 
-const GOLD    = 'var(--accent)';
-const GOLD_DK = 'var(--accent-2)';
-const GOLD_LT = 'var(--accent-bright)';
-const SURFACE = 'var(--surface)';
-const BG      = 'var(--bg)';
-const CREAM   = 'var(--tx)';
+const P      = '#5B3DF5';   // primary
+const P2     = '#7C5CFF';   // secondary
+const G      = '#16A34A';   // success / veg
+const R      = '#EF4444';   // danger / non-veg
+const BG     = '#F8FAFC';
+const CARD   = '#FFFFFF';
+const TX     = '#111827';
+const MUTED  = '#6B7280';
 
-// ── Visual metadata generators (enrich UX without fake data) ──────────────
+const GRAD_CARDS = [
+  'linear-gradient(135deg,#1E0050,#4C1D95)',
+  'linear-gradient(135deg,#7F1D1D,#991B1B)',
+  'linear-gradient(135deg,#064E3B,#065F46)',
+  'linear-gradient(135deg,#1E3A5F,#1D4ED8)',
+  'linear-gradient(135deg,#431407,#9A3412)',
+  'linear-gradient(135deg,#3B0764,#6B21A8)',
+];
 
-function getBadge(idx: number): 'BESTSELLER' | 'POPULAR' | 'CHEFS_SPECIAL' | 'TRENDING' | '' {
-  if (idx % 7 === 0) return 'BESTSELLER';
-  if (idx % 7 === 2) return 'POPULAR';
-  if (idx % 7 === 4) return 'TRENDING';
-  if (idx % 11 === 9) return 'CHEFS_SPECIAL';
-  return '';
-}
+const FOOD_EMOJIS = ['🍛','🍜','🍕','🍔','🌮','🍣','🥗','🍰','☕','🍝','🥘','🫕'];
+const RATINGS     = ['4.1','4.2','4.3','4.4','4.5','3.9','4.0','4.6'];
+const BADGES      = ['BESTSELLER','POPULAR','','TRENDING','','CHEFS_PICK','',''] as const;
 
-function getPrepTime(idx: number): number {
-  return 10 + (idx % 5) * 5; // 10–30 min
-}
-
-function getRating(idx: number): string {
-  const ratings = ['4.1', '4.2', '4.3', '4.4', '4.5', '3.9', '4.0', '4.6'];
-  return ratings[idx % ratings.length];
-}
-
-const FOOD_EMOJIS = ['🍛', '🍜', '🍕', '🍔', '🌮', '🍣', '🥗', '🍰', '☕', '🍝', '🥘', '🫕'];
-function foodEmoji(idx: number) { return FOOD_EMOJIS[idx % FOOD_EMOJIS.length]; }
-
+function foodEmoji(i: number) { return FOOD_EMOJIS[i % FOOD_EMOJIS.length]; }
+function getRating(i: number) { return RATINGS[i % RATINGS.length]; }
+function getBadge(i: number) { return BADGES[i % BADGES.length]; }
 function getCatEmoji(name: string): string {
   const n = name.toLowerCase();
-  if (n.includes('biryani'))                        return '🍛';
-  if (n.includes('pizza'))                          return '🍕';
-  if (n.includes('burger'))                         return '🍔';
-  if (n.includes('chicken') || n.includes('non-veg')) return '🍗';
-  if (n.includes('veg') && !n.includes('non'))      return '🥗';
-  if (n.includes('dessert') || n.includes('sweet') || n.includes('brownie') || n.includes('cake')) return '🍰';
-  if (n.includes('noodle') || n.includes('rice'))   return '🍜';
-  if (n.includes('drink') || n.includes('beverage') || n.includes('juice')) return '🥤';
-  if (n.includes('bread') || n.includes('bakery'))  return '🥖';
-  if (n.includes('snack') || n.includes('starter')) return '🥨';
-  if (n.includes('sea') || n.includes('fish') || n.includes('prawn')) return '🦐';
-  if (n.includes('coffee') || n.includes('café') || n.includes('cafe')) return '☕';
-  if (n.includes('wrap') || n.includes('roll'))     return '🌯';
-  if (n.includes('combo') || n.includes('meal'))    return '🎁';
-  if (n.includes('special') || n.includes('weekend')) return '⭐';
-  if (n.includes('indo') || n.includes('chinese'))  return '🥡';
+  if (n.includes('pizza'))                           return '🍕';
+  if (n.includes('burger'))                          return '🍔';
+  if (n.includes('biryani'))                         return '🍛';
+  if (n.includes('chicken') || n.includes('non'))    return '🍗';
+  if (n.includes('veg') && !n.includes('non'))       return '🥗';
+  if (n.includes('dessert') || n.includes('sweet'))  return '🍰';
+  if (n.includes('bread') || n.includes('garlic'))   return '🥖';
+  if (n.includes('drink') || n.includes('beverage')) return '🥤';
+  if (n.includes('side'))                            return '🥨';
+  if (n.includes('noodle') || n.includes('pasta'))   return '🍜';
   return '🍽️';
 }
 
-const ITEM_IMG_GRADIENTS = [
-  'linear-gradient(135deg, #1E0050 0%, #4C1D95 100%)',
-  'linear-gradient(135deg, #7F1D1D 0%, #991B1B 100%)',
-  'linear-gradient(135deg, #064E3B 0%, #065F46 100%)',
-  'linear-gradient(135deg, #1E3A5F 0%, #1D4ED8 100%)',
-  'linear-gradient(135deg, #431407 0%, #9A3412 100%)',
-  'linear-gradient(135deg, #3B0764 0%, #6B21A8 100%)',
-];
+// ── Veg / Non-veg dot ─────────────────────────────────────────────────────────
 
-// ── Badge component ────────────────────────────────────────────────────────
-
-function Badge({ type }: { type: 'BESTSELLER' | 'POPULAR' | 'CHEFS_SPECIAL' | 'TRENDING' }) {
-  const styles: Record<string, { bg: string; color: string; label: string; icon: string }> = {
-    BESTSELLER:  { bg: 'linear-gradient(135deg,#6B4F00,#C49A0A)', color: '#FFF7D6', label: 'Bestseller',   icon: '⭐' },
-    POPULAR:     { bg: 'rgba(251,146,60,0.14)',  color: '#FB923C', label: 'Popular',      icon: '🔥' },
-    CHEFS_SPECIAL:{ bg: 'rgba(167,139,250,0.12)', color: '#A78BFA', label: "Chef's Pick",  icon: '👨‍🍳' },
-    TRENDING:    { bg: 'rgba(251,191,36,0.12)', color: '#FBBF24', label: 'Trending',      icon: '📈' },
-  };
-  const s = styles[type];
+function VegDot({ isVeg }: { isVeg?: boolean }) {
+  if (isVeg == null) return null;
   return (
-    <span style={{
-      background: s.bg,
-      color: s.color,
-      border: type === 'BESTSELLER' ? 'none' : `1px solid ${s.color}30`,
-      fontSize: 9, fontWeight: 900, padding: '2px 8px',
-      borderRadius: 5, textTransform: 'uppercase' as const, letterSpacing: '0.04em',
-      boxShadow: type === 'BESTSELLER' ? '0 2px 10px rgba(212,160,23,0.3)' : 'none',
+    <div style={{
+      width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+      border: `2.5px solid ${isVeg ? G : R}`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      {s.icon} {s.label}
-    </span>
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: isVeg ? G : R }} />
+    </div>
   );
 }
 
-// ── Quick Preview Modal ────────────────────────────────────────────────────
+// ── Offer ribbon ──────────────────────────────────────────────────────────────
+
+function OfferRibbon({ label }: { label: string }) {
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0,
+      background: `linear-gradient(135deg, ${G}, #15803D)`,
+      color: '#fff', fontSize: 9, fontWeight: 900,
+      letterSpacing: '0.06em', padding: '4px 10px',
+      borderRadius: '16px 0 10px 0',
+    }}>
+      {label}
+    </div>
+  );
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+function Skeleton({ style }: { style?: React.CSSProperties }) {
+  return (
+    <div
+      className="animate-pulse"
+      style={{ background: '#E5E7EB', borderRadius: 8, ...style }}
+    />
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <div style={{ background: BG, minHeight: '100vh', display: 'flex' }}>
+      {/* Sidebar skeleton */}
+      <aside style={{ width: 260, flexShrink: 0, borderRight: '1px solid #E5E7EB', padding: 16, display: 'none' }} className="lg:block">
+        <Skeleton style={{ height: 24, width: '70%', marginBottom: 24 }} />
+        {Array.from({ length: 8 }, (_, i) => (
+          <Skeleton key={i} style={{ height: 44, marginBottom: 8, borderRadius: 12 }} />
+        ))}
+      </aside>
+      {/* Center skeleton */}
+      <div style={{ flex: 1, padding: '16px' }}>
+        <Skeleton style={{ height: 220, borderRadius: 20, marginBottom: 16 }} />
+        <Skeleton style={{ height: 56, borderRadius: 16, marginBottom: 20 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          {Array.from({ length: 9 }, (_, i) => (
+            <div key={i} style={{ borderRadius: 16, overflow: 'hidden', background: CARD, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <Skeleton style={{ height: 180, borderRadius: 0 }} />
+              <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Skeleton style={{ height: 14, width: '80%' }} />
+                <Skeleton style={{ height: 11, width: '60%' }} />
+                <Skeleton style={{ height: 32, marginTop: 4 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Quick View Modal ───────────────────────────────────────────────────────────
 
 function QuickViewModal({
   item, idx, discountedPrice, discountLabel, cartQty, isAdding,
@@ -132,220 +169,119 @@ function QuickViewModal({
   cartQty: number; isAdding: boolean;
   onAdd: () => void; onRemove: () => void; onClose: () => void;
 }) {
-  const badge    = getBadge(idx);
-  const prepTime = getPrepTime(idx);
-  const hasDiscount = discountLabel !== null;
-
   return (
     <AnimatePresence>
       <motion.div
-        key="qv-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        key="backdrop"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 80,
-          background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(6px)',
-        }}
+        style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}
       />
       <motion.div
-        key="qv-sheet"
-        initial={{ y: '100%', opacity: 0.85 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+        key="sheet"
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
         style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 81,
-          background: '#ffffff',
-          borderTop: '1px solid rgba(15,23,42,0.08)',
-          borderRadius: '28px 28px 0 0',
-          maxHeight: '88vh',
-          overflow: 'hidden',
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 91,
+          background: CARD, borderRadius: '28px 28px 0 0',
+          maxHeight: '88vh', overflow: 'hidden',
           display: 'flex', flexDirection: 'column',
-          boxShadow: '0 -24px 70px rgba(15,23,42,0.18)',
+          boxShadow: '0 -24px 70px rgba(0,0,0,0.2)',
         }}
       >
-        {/* Drag handle */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 0' }}>
-          <div style={{ width: 42, height: 4, borderRadius: 999, background: 'rgba(15,23,42,0.12)' }} />
+          <div style={{ width: 40, height: 4, borderRadius: 999, background: '#E5E7EB' }} />
         </div>
-
-        {/* Scrollable content */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 134 }}>
-          {/* Hero image */}
-          <div style={{ position: 'relative', height: 260, margin: '12px 16px 0', borderRadius: 22, overflow: 'hidden', boxShadow: '0 24px 60px rgba(15,23,42,0.08)' }}>
+        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 120 }}>
+          {/* Hero */}
+          <div style={{ position: 'relative', height: 260, margin: '12px 16px 0', borderRadius: 20, overflow: 'hidden' }}>
             {item.imageUrl ? (
               <img src={resolveMediaUrl(item.imageUrl)} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
-              <div style={{
-                width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'linear-gradient(135deg, #F8F0D1 0%, #E8D09C 100%)',
-              }}>
-                <span style={{ fontSize: 72, filter: 'drop-shadow(0 8px 20px rgba(15,23,42,0.16))' }}>{foodEmoji(idx)}</span>
+              <div style={{ width: '100%', height: '100%', background: GRAD_CARDS[idx % GRAD_CARDS.length], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 80 }}>{foodEmoji(idx)}</span>
               </div>
             )}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 55%)' }} />
-            {/* Close button */}
-            <button
-              onClick={onClose}
-              style={{
-                position: 'absolute', top: 14, right: 14,
-                width: 38, height: 38, borderRadius: '50%',
-                background: 'rgba(255,255,255,0.92)',
-                border: '1px solid rgba(15,23,42,0.08)',
-                color: '#111827', fontSize: 14, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 12px 24px rgba(15,23,42,0.12)',
-              }}
-            >✕</button>
-            {/* Discount ribbon */}
-            {hasDiscount && discountLabel && (
-              <div style={{
-                position: 'absolute', top: 14, left: 14,
-                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-                borderRadius: 999, padding: '5px 13px', fontSize: 11, fontWeight: 900, color: '#ffffff',
-                boxShadow: '0 10px 24px rgba(249,115,22,0.18)',
-              }}>{discountLabel}</div>
-            )}
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 50%)' }} />
+            <button onClick={onClose} style={{
+              position: 'absolute', top: 14, right: 14,
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.9)', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            }}>
+              <X size={16} color={TX} />
+            </button>
+            {discountLabel && <OfferRibbon label={discountLabel} />}
           </div>
-
-          {/* Info */}
+          {/* Details */}
           <div style={{ padding: '20px 20px 0' }}>
-            {/* Veg indicator + badges */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              {item.isVeg != null && (
-                <div style={{
-                  width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                  border: `2.5px solid ${item.isVeg ? '#22c55e' : '#ef4444'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.isVeg ? '#22c55e' : '#ef4444' }} />
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <VegDot isVeg={item.isVeg} />
+              <span style={{
+                background: '#DCFCE7', color: G, fontSize: 11, fontWeight: 700,
+                padding: '2px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 3,
+              }}>
+                <Star size={10} fill={G} color={G} /> {getRating(idx)}
+              </span>
+              {getBadge(idx) && (
+                <span style={{ background: `${P}15`, color: P, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
+                  {getBadge(idx)}
+                </span>
               )}
-              {badge && <Badge type={badge} />}
             </div>
-
-            {/* Name */}
-            <h2 style={{ fontSize: 22, fontWeight: 900, color: CREAM, margin: 0, lineHeight: 1.2 }}>{item.name}</h2>
-
-            {/* Metadata row */}
-            <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, color: 'rgba(212,175,55,0.55)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                🕒 {prepTime} min prep
-              </span>
-              <span style={{ fontSize: 12, color: item.isVeg ? 'rgba(74,222,128,0.7)' : 'rgba(248,113,113,0.7)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                {item.isVeg ? '🌿 Vegetarian' : '🍖 Non-Veg'}
-              </span>
-            </div>
-
-            {/* Description */}
-            {item.description ? (
-              <p style={{ fontSize: 15, color: '#475569', marginTop: 16, lineHeight: 1.75 }}>{item.description}</p>
-            ) : (
-              <p style={{ fontSize: 15, color: '#94A3B8', marginTop: 16, lineHeight: 1.75, fontStyle: 'italic' }}>
-                A freshly prepared dish made with the finest ingredients.
-              </p>
-            )}
-
-            {/* Price */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 22, flexWrap: 'wrap' }}>
-              <p style={{ fontSize: 28, fontWeight: 900, color: '#C47B06', margin: 0 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 900, color: TX, margin: 0 }}>{item.name}</h2>
+            <p style={{ fontSize: 14, color: MUTED, marginTop: 10, lineHeight: 1.7 }}>
+              {item.description ?? 'A freshly prepared dish made with the finest ingredients.'}
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20 }}>
+              <span style={{ fontSize: 28, fontWeight: 900, color: P }}>
                 ₹{discountedPrice % 1 === 0 ? discountedPrice : discountedPrice.toFixed(2)}
-              </p>
-              {hasDiscount && (
-                <p style={{ fontSize: 15, color: 'rgba(212,175,55,0.38)', textDecoration: 'line-through', margin: 0 }}>₹{item.price}</p>
-              )}
-              {hasDiscount && discountLabel && (
-                <span style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.22)', color: '#4ade80', fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 8 }}>{discountLabel}</span>
+              </span>
+              {discountLabel && (
+                <span style={{ fontSize: 16, color: '#CBD5E1', textDecoration: 'line-through' }}>₹{item.price}</span>
               )}
             </div>
-
-            {/* Addons note */}
             {item.addons && item.addons.length > 0 && (
-              <div style={{ marginTop: 16, padding: '14px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 16 }}>
-                <p style={{ fontSize: 13, color: '#475569', margin: 0 }}>
-                  ⚙️ Customizable · {item.addons.length} add-on option{item.addons.length !== 1 ? 's' : ''} available
+              <div style={{ marginTop: 16, padding: '12px 14px', background: '#F8FAFC', borderRadius: 14, border: '1px solid #E5E7EB' }}>
+                <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>
+                  ⚙️ {item.addons.length} customization{item.addons.length > 1 ? 's' : ''} available
                 </p>
               </div>
             )}
           </div>
         </div>
-
-        {/* Sticky bottom CTA */}
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          padding: '18px 22px calc(env(safe-area-inset-bottom, 0px) + 18px)',
-          background: '#ffffff',
-          borderTop: '1px solid rgba(15,23,42,0.08)',
-        }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-            {cartQty > 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                <button
-                  onClick={onRemove}
-                  disabled={isAdding}
-                  style={{
-                    width: 46, height: 46, borderRadius: 14,
-                    border: '1px solid rgba(15,23,42,0.12)',
-                    background: isAdding ? '#F8FAFC' : '#ffffff',
-                    color: '#166534', fontSize: 22, fontWeight: 900,
-                    cursor: isAdding ? 'default' : 'pointer',
-                  }}
-                >
-                  −
-                </button>
-                <div style={{
-                  flex: 1, minWidth: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: '#F8FAFC', borderRadius: 14,
-                  border: '1px solid rgba(226,232,240,0.9)', padding: '16px 12px',
-                  fontSize: 16, fontWeight: 900, color: '#111827',
-                }}>
-                  {cartQty}
-                </div>
-                <button
-                  onClick={onAdd}
-                  disabled={isAdding}
-                  style={{
-                    width: 46, height: 46, borderRadius: 14,
-                    border: '1px solid rgba(15,23,42,0.12)',
-                    background: isAdding ? '#F8FAFC' : '#ffffff',
-                    color: '#166534', fontSize: 22, fontWeight: 900,
-                    cursor: isAdding ? 'default' : 'pointer',
-                  }}
-                >
-                  +
-                </button>
-              </div>
-            ) : (
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={onAdd}
-                disabled={isAdding}
-                style={{
-                  flex: 1,
-                  minWidth: 200,
-                  background: isAdding ? '#FBBF24' : 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-                  border: 'none', borderRadius: 18,
-                  padding: '16px 0',
-                  fontSize: 16, fontWeight: 900, color: '#111827',
-                  cursor: isAdding ? 'default' : 'pointer',
-                  boxShadow: isAdding ? 'none' : '0 18px 40px rgba(249,115,22,0.22)',
-                  textAlign: 'center' as const,
-                }}
-              >
-                {isAdding ? 'Adding…' : 'Add to Cart'}
-              </motion.button>
-            )}
-          </div>
+        {/* CTA */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px 20px calc(env(safe-area-inset-bottom,0px) + 16px)', background: CARD, borderTop: '1px solid #F1F5F9' }}>
+          {cartQty > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <motion.button whileTap={{ scale: 0.92 }} onClick={onRemove} disabled={isAdding} style={{ flex: 1, height: 50, borderRadius: 14, border: `2px solid ${P}`, background: CARD, color: P, fontSize: 22, fontWeight: 900, cursor: 'pointer' }}>−</motion.button>
+              <div style={{ flex: 1, height: 50, borderRadius: 14, background: `${P}10`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, color: P }}>{cartQty}</div>
+              <motion.button whileTap={{ scale: 0.92 }} onClick={onAdd} disabled={isAdding} style={{ flex: 1, height: 50, borderRadius: 14, border: `2px solid ${P}`, background: CARD, color: P, fontSize: 22, fontWeight: 900, cursor: 'pointer' }}>+</motion.button>
+            </div>
+          ) : (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={onAdd}
+              disabled={isAdding}
+              style={{
+                width: '100%', height: 52, borderRadius: 16,
+                background: isAdding ? '#CBD5E1' : `linear-gradient(135deg, ${P}, ${P2})`,
+                border: 'none', color: '#fff', fontSize: 16, fontWeight: 800,
+                cursor: isAdding ? 'default' : 'pointer',
+                boxShadow: isAdding ? 'none' : `0 12px 30px ${P}40`,
+              }}
+            >
+              {isAdding ? 'Adding…' : 'Add to Cart'}
+            </motion.button>
+          )}
         </div>
       </motion.div>
     </AnimatePresence>
   );
 }
 
-// ── Menu Item Card — Zomato/Swiggy style ─────────────────────────────────
+// ── Menu Item Card ────────────────────────────────────────────────────────────
 
 function MenuItemCard({
   item, idx, discountedPrice, discountLabel, cartQty, orderedQty,
@@ -358,218 +294,201 @@ function MenuItemCard({
   onToggleFav: (e: React.MouseEvent) => void;
   onQuickView: () => void;
 }) {
-  const badge       = getBadge(idx);
-  const hasDiscount = discountLabel !== null;
-  const inCart      = cartQty > 0;
-  const rating      = getRating(idx);
-
-  const BADGE_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-    BESTSELLER:   { bg: '#1BA672', color: '#fff',    label: 'BESTSELLER'   },
-    POPULAR:      { bg: '#1BA672', color: '#fff',    label: 'POPULAR'      },
-    TRENDING:     { bg: '#1BA672', color: '#fff',    label: 'TRENDING'     },
-    CHEFS_SPECIAL:{ bg: '#1BA672', color: '#fff',    label: "CHEF'S PICK"  },
-  };
+  const badge    = getBadge(idx);
+  const inCart   = cartQty > 0;
+  const rating   = getRating(idx);
+  const hasOffer = !!discountLabel;
+  const [imgHover, setImgHover] = useState(false);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(idx * 0.04, 0.4), duration: 0.35 }}
-      whileHover={{ y: -3, boxShadow: '0 12px 32px rgba(0,0,0,0.13)' }}
+      transition={{ delay: Math.min(idx * 0.035, 0.35), duration: 0.3 }}
+      whileHover={{ y: -4, boxShadow: `0 20px 50px rgba(91,61,245,0.12)` }}
       onClick={onQuickView}
       style={{
-        position: 'relative', overflow: 'hidden',
-        background: '#ffffff',
-        borderRadius: 16,
-        border: `1px solid ${inCart ? '#1BA672' : '#e5e7eb'}`,
-        boxShadow: inCart
-          ? '0 4px 16px rgba(27,166,114,0.15)'
-          : '0 2px 8px rgba(0,0,0,0.06)',
-        cursor: 'pointer',
-        display: 'flex', flexDirection: 'column',
+        position: 'relative', background: CARD,
+        borderRadius: 20, overflow: 'hidden',
+        border: `1.5px solid ${inCart ? P : '#E5E7EB'}`,
+        boxShadow: inCart ? `0 4px 20px ${P}20` : '0 2px 10px rgba(0,0,0,0.06)',
+        cursor: 'pointer', display: 'flex', flexDirection: 'column',
         transition: 'border-color 0.2s, box-shadow 0.2s',
       }}
     >
-      {/* ── IMAGE ─────────────────────────────────────────────────── */}
-      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '15px 15px 0 0' }}>
-        <div style={{
-          height: 190,
-          background: ITEM_IMG_GRADIENTS[idx % ITEM_IMG_GRADIENTS.length],
-        }}>
-          {item.imageUrl ? (
-            <img
-              src={resolveMediaUrl(item.imageUrl)} alt={item.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.45s ease' }}
-            />
-          ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: 64, filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.4))' }}>{foodEmoji(idx)}</span>
-            </div>
-          )}
-        </div>
+      {/* Image */}
+      <div
+        style={{ position: 'relative', height: 180, overflow: 'hidden', background: GRAD_CARDS[idx % GRAD_CARDS.length] }}
+        onMouseEnter={() => setImgHover(true)}
+        onMouseLeave={() => setImgHover(false)}
+      >
+        {item.imageUrl ? (
+          <img
+            src={resolveMediaUrl(item.imageUrl)}
+            alt={item.name}
+            loading="lazy"
+            style={{
+              width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+              transform: imgHover ? 'scale(1.07)' : 'scale(1)',
+              transition: 'transform 0.45s ease',
+            }}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 60, filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.35))', transition: 'transform 0.4s', transform: imgHover ? 'scale(1.15)' : 'scale(1)' }}>
+              {foodEmoji(idx)}
+            </span>
+          </div>
+        )}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 50%)' }} />
 
-        {/* Top-left: offer / badge */}
-        {badge && badge in BADGE_STYLES && (
+        {/* Top-left ribbon */}
+        {inCart ? (
           <div style={{
             position: 'absolute', top: 0, left: 0,
-            background: BADGE_STYLES[badge].bg,
-            color: BADGE_STYLES[badge].color,
-            fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
-            padding: '4px 10px', borderRadius: '15px 0 8px 0',
-          }}>
-            {BADGE_STYLES[badge].label}
-          </div>
-        )}
-        {hasDiscount && discountLabel && !badge && (
+            background: `linear-gradient(135deg, ${P}, ${P2})`,
+            color: '#fff', fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
+            padding: '4px 10px', borderRadius: '18px 0 10px 0',
+          }}>🛒 {cartQty} IN CART</div>
+        ) : badge ? (
           <div style={{
             position: 'absolute', top: 0, left: 0,
-            background: '#1BA672', color: '#fff',
+            background: G, color: '#fff',
             fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
-            padding: '4px 10px', borderRadius: '15px 0 8px 0',
-          }}>
-            {discountLabel}
-          </div>
-        )}
-        {inCart && (
-          <div style={{
-            position: 'absolute', top: 0, left: 0,
-            background: '#1BA672', color: '#fff',
-            fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
-            padding: '4px 10px', borderRadius: '15px 0 8px 0',
-          }}>
-            🛒 {cartQty} IN CART
-          </div>
-        )}
+            padding: '4px 10px', borderRadius: '18px 0 10px 0',
+          }}>{badge}</div>
+        ) : hasOffer ? (
+          <OfferRibbon label={discountLabel!} />
+        ) : null}
 
-        {/* Top-right: fav button */}
+        {/* Fav button */}
         <motion.button
-          whileTap={{ scale: 0.72 }}
+          whileTap={{ scale: 0.7 }}
           onClick={onToggleFav}
           style={{
             position: 'absolute', top: 8, right: 8,
             width: 32, height: 32, borderRadius: '50%',
-            background: isFav ? 'rgba(239,68,68,0.9)' : 'rgba(255,255,255,0.88)',
-            backdropFilter: 'blur(8px)',
-            border: `1px solid ${isFav ? 'rgba(239,68,68,0.4)' : 'rgba(0,0,0,0.08)'}`,
+            background: isFav ? `${R}E8` : 'rgba(255,255,255,0.9)',
+            backdropFilter: 'blur(6px)',
+            border: `1px solid ${isFav ? R : 'rgba(0,0,0,0.08)'}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', fontSize: 15,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+            cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
           }}
         >
-          {isFav ? '❤️' : '🤍'}
+          <Heart size={14} fill={isFav ? '#fff' : 'none'} color={isFav ? '#fff' : R} />
         </motion.button>
+
+        {/* "Ordered before" badge */}
+        {orderedQty > 0 && (
+          <div style={{
+            position: 'absolute', bottom: 8, left: 8,
+            background: 'rgba(22,163,74,0.88)', backdropFilter: 'blur(6px)',
+            color: '#fff', fontSize: 9, fontWeight: 700,
+            padding: '3px 8px', borderRadius: 6,
+          }}>✓ Ordered before</div>
+        )}
       </div>
 
-      {/* ── CARD BODY ─────────────────────────────────────────────── */}
+      {/* Body */}
       <div style={{ padding: '12px 13px 14px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+        {/* Veg dot */}
+        <div style={{ marginBottom: 6 }}>
+          <VegDot isVeg={item.isVeg} />
+        </div>
 
-        {/* Veg / Non-veg indicator */}
-        {item.isVeg != null && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-            <div style={{
-              width: 16, height: 16, borderRadius: 3, flexShrink: 0,
-              border: `2px solid ${item.isVeg ? '#22c55e' : '#ef4444'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <div style={{ width: 7, height: 7, borderRadius: '50%', background: item.isVeg ? '#22c55e' : '#ef4444' }} />
-            </div>
-            {orderedQty > 0 && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a' }}>✓ Ordered</span>
-            )}
-          </div>
-        )}
-
-        {/* Item name */}
+        {/* Name */}
         <p style={{
-          fontSize: 14, fontWeight: 700, color: '#1a1a1a', margin: 0, lineHeight: 1.3,
+          fontSize: 14, fontWeight: 700, color: TX, margin: 0, lineHeight: 1.3,
           overflow: 'hidden', display: '-webkit-box',
           WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-        }}>
-          {item.name}
-        </p>
+        }}>{item.name}</p>
 
         {/* Description */}
         <p style={{
-          fontSize: 11.5, color: '#6b7280', marginTop: 5, lineHeight: 1.5, flex: 1,
+          fontSize: 11.5, color: MUTED, marginTop: 5, lineHeight: 1.5, flex: 1,
           overflow: 'hidden', display: '-webkit-box',
           WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
         }}>
-          {item.description ?? 'A freshly prepared dish made with the finest ingredients.'}
+          {item.description ?? 'Freshly prepared with the finest ingredients.'}
         </p>
 
         {/* Rating */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 3,
-            background: '#1BA672', color: '#fff',
-            fontSize: 11, fontWeight: 800,
-            padding: '2px 7px', borderRadius: 5,
+            background: '#DCFCE7', color: G,
+            fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6,
           }}>
-            ★ {rating}
+            <Star size={9} fill={G} color={G} /> {rating}
           </span>
+          {hasOffer && (
+            <span style={{ fontSize: 10, color: G, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Tag size={9} />{discountLabel}
+            </span>
+          )}
         </div>
 
-        {/* Price + Add button */}
+        {/* Price + Add */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-          {/* Price */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}>
-              ₹ {discountedPrice % 1 === 0 ? discountedPrice : discountedPrice.toFixed(2)}
+            <span style={{ fontSize: 16, fontWeight: 800, color: TX }}>
+              ₹{discountedPrice % 1 === 0 ? discountedPrice : discountedPrice.toFixed(2)}
             </span>
-            {hasDiscount && (
-              <span style={{ fontSize: 11, color: '#9ca3af', textDecoration: 'line-through' }}>
-                ₹{item.price}
-              </span>
+            {hasOffer && (
+              <span style={{ fontSize: 11, color: '#CBD5E1', textDecoration: 'line-through' }}>₹{item.price}</span>
             )}
           </div>
 
-          {/* Add / quantity control */}
           {inCart ? (
-            <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #1BA672', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              border: `2px solid ${P}`, borderRadius: 10, overflow: 'hidden',
+            }}>
               <button
-                onClick={onRemove}
-                disabled={isAdding}
+                onClick={onRemove} disabled={isAdding}
                 style={{
                   width: 30, height: 30, border: 'none', background: '#fff',
-                  color: '#1BA672', fontSize: 17, fontWeight: 900,
+                  color: P, fontSize: 17, fontWeight: 900,
                   cursor: isAdding ? 'default' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
-              >−</button>
+              ><Minus size={12} /></button>
               <div style={{
-                width: 28, textAlign: 'center' as const,
-                fontSize: 13, fontWeight: 900, color: '#1BA672',
-                borderLeft: '1px solid #1BA672', borderRight: '1px solid #1BA672',
-                lineHeight: '30px',
-              }}>
-                {cartQty}
-              </div>
+                width: 28, textAlign: 'center' as const, fontSize: 13, fontWeight: 900, color: P,
+                borderLeft: `1px solid ${P}`, borderRight: `1px solid ${P}`, lineHeight: '30px',
+              }}>{cartQty}</div>
               <button
-                onClick={onAdd}
-                disabled={isAdding}
+                onClick={onAdd} disabled={isAdding}
                 style={{
                   width: 30, height: 30, border: 'none', background: '#fff',
-                  color: '#1BA672', fontSize: 17, fontWeight: 900,
+                  color: P, fontSize: 17, fontWeight: 900,
                   cursor: isAdding ? 'default' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
-              >+</button>
+              ><Plus size={12} /></button>
             </div>
           ) : (
             <motion.button
-              whileTap={{ scale: 0.94 }}
+              whileTap={{ scale: 0.92 }}
               onClick={onAdd}
               disabled={isAdding}
               style={{
-                padding: '6px 20px',
-                background: '#fff',
-                border: '1.5px solid #1BA672',
-                borderRadius: 8,
-                fontSize: 13, fontWeight: 800, color: '#1BA672',
+                padding: '6px 18px', background: '#fff',
+                border: `2px solid ${P}`, borderRadius: 10,
+                fontSize: 13, fontWeight: 800, color: P,
                 cursor: isAdding ? 'default' : 'pointer',
-                letterSpacing: '0.01em',
                 opacity: isAdding ? 0.6 : 1,
-                transition: 'all 0.15s ease',
+                transition: 'background 0.15s, color 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                if (!isAdding) {
+                  (e.currentTarget as HTMLButtonElement).style.background = P;
+                  (e.currentTarget as HTMLButtonElement).style.color = '#fff';
+                }
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = '#fff';
+                (e.currentTarget as HTMLButtonElement).style.color = P;
               }}
             >
               {isAdding ? '…' : 'Add'}
@@ -581,80 +500,207 @@ function MenuItemCard({
   );
 }
 
-// ── Premium Loading Skeleton ───────────────────────────────────────────────
+// ── Cart Panel ─────────────────────────────────────────────────────────────────
 
-function PageSkeleton() {
+function CartPanel({
+  cartItems, cartTotal, onClose, onAdd, onRemove, onCheckout, deliveryFee,
+  restaurantName, suggestions = [],
+}: {
+  cartItems: any[]; cartTotal: number; onClose?: () => void;
+  onAdd: (item: any) => void; onRemove: (item: any) => void;
+  onCheckout: () => void; deliveryFee: number;
+  restaurantName?: string; suggestions?: any[];
+}) {
+  const totalQty = cartItems.reduce((s, ci) => s + (Number(ci.quantity) || 1), 0);
+
   return (
-    <div style={{ background: BG, minHeight: '100vh' }}>
-      {/* Hero skeleton */}
-      <div style={{ height: 200, background: 'linear-gradient(135deg, #1C0A00, #3A1A00)' }} className="animate-pulse" />
-      <div style={{ padding: '16px 16px 0' }}>
-        <div style={{ height: 26, width: '55%', background: 'var(--surface-2)', borderRadius: 8, marginBottom: 10 }} className="animate-pulse" />
-        <div style={{ height: 14, width: '35%', background: 'var(--surface-2)', borderRadius: 8, marginBottom: 20 }} className="animate-pulse" />
-        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-          {[80, 110, 90, 80].map((w, i) => <div key={i} style={{ height: 28, width: w, background: 'var(--surface-2)', borderRadius: 999 }} className="animate-pulse" />)}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff' }}>
+
+      {/* ── Header ── */}
+      <div style={{ padding: '16px 18px 12px', flexShrink: 0, borderBottom: '1px solid #F1F5F9' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0 }}>Your Cart</p>
+            <p style={{ fontSize: 12, color: '#888', margin: '2px 0 0' }}>
+              {totalQty} item{totalQty !== 1 ? 's' : ''}
+              {restaurantName ? ` · ${restaurantName}` : ''}
+            </p>
+          </div>
+          {onClose && (
+            <button onClick={onClose} style={{ background: '#F4F4F5', border: 'none', cursor: 'pointer', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <X size={14} color="#666" />
+            </button>
+          )}
         </div>
       </div>
-      {/* Category tabs skeleton */}
-      <div style={{ height: 46, background: 'var(--surface-2)', borderBottom: '1px solid rgba(212,160,23,0.08)', marginBottom: 8, display: 'flex', gap: 8, padding: '0 12px', alignItems: 'center' }}>
-        {[70, 90, 80, 100, 75].map((w, i) => <div key={i} style={{ height: 20, width: w, background: 'var(--surface-2)', borderRadius: 999 }} className="animate-pulse" />)}
-      </div>
-      {/* Cards skeleton */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" style={{ padding: '8px 12px' }}>
-        {[...Array(6)].map((_, i) => (
-          <div key={i} style={{ borderRadius: 18, overflow: 'hidden', border: '1px solid var(--border)' }} className="animate-pulse">
-            <div style={{ height: 170, background: 'var(--surface-2)' }} />
-            <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ height: 14, width: '75%', background: 'var(--surface-2)', borderRadius: 6 }} />
-              <div style={{ height: 10, width: '50%', background: 'var(--surface-2)', borderRadius: 6 }} />
-              <div style={{ height: 16, width: '40%', background: 'var(--surface-2)', borderRadius: 6 }} />
-              <div style={{ height: 36, background: 'var(--surface-2)', borderRadius: 10 }} />
+
+      {/* ── Scrollable body ── */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+
+        {/* Cart items */}
+        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {cartItems.map((ci, i) => {
+            const price = Number(ci.unitPrice ?? ci.price ?? ci.totalPrice ?? 0);
+            const qty   = Number(ci.quantity) || 1;
+            const name  = ci.name ?? ci.menuItemName ?? ci.menuItem?.name ?? ci.item?.name ?? 'Item';
+            const rawImg = ci.imageUrl ?? ci.menuItem?.imageUrl ?? ci.item?.imageUrl ?? null;
+            const img    = rawImg ? resolveMediaUrl(rawImg) : null;
+            return (
+              <div key={ci.id ?? i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #F5F5F5' }}>
+                {/* Food image / fallback emoji */}
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: '#FFF3E0', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {img
+                    ? <img src={img} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: 22 }}>🍽️</span>
+                  }
+                </div>
+
+                {/* Name + price×qty */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
+                  <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>₹{price.toFixed(2)} × {qty}</p>
+                </div>
+
+                {/* Stepper */}
+                <div style={{ display: 'flex', alignItems: 'center', border: `1.5px solid ${P}`, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+                  <button onClick={() => onRemove(ci)} style={{ width: 26, height: 26, border: 'none', background: '#fff', color: P, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Minus size={9} />
+                  </button>
+                  <span style={{ width: 24, textAlign: 'center' as const, fontSize: 12, fontWeight: 800, color: P, borderLeft: `1px solid ${P}`, borderRight: `1px solid ${P}`, lineHeight: '26px' }}>{qty}</span>
+                  <button onClick={() => onAdd(ci)} style={{ width: 26, height: 26, border: 'none', background: '#fff', color: P, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Plus size={9} />
+                  </button>
+                </div>
+
+                {/* Line total */}
+                <p style={{ fontSize: 13, fontWeight: 700, color: G, margin: 0, flexShrink: 0, minWidth: 42, textAlign: 'right' as const }}>₹{(price * qty).toFixed(0)}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── You might also like ── */}
+        {suggestions.length > 0 && (
+          <div style={{ padding: '12px 16px 8px' }}>
+            <p style={{ fontSize: 10, fontWeight: 800, color: G, letterSpacing: '0.08em', textTransform: 'uppercase' as const, margin: '0 0 10px' }}>You might also like</p>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+              {suggestions.slice(0, 5).map((s, i) => {
+                const sImg  = s.imageUrl ? resolveMediaUrl(s.imageUrl) : null;
+                const sPrice = Number(s.price ?? s.basePrice ?? 0);
+                return (
+                  <div key={s.id ?? i} style={{ flexShrink: 0, width: 90, border: '1px solid #EFEFEF', borderRadius: 12, overflow: 'hidden', background: '#FAFAFA', cursor: 'pointer' }} onClick={() => onAdd({ menuItemId: s.id, name: s.name, unitPrice: sPrice, quantity: 1 })}>
+                    <div style={{ height: 56, background: '#FFF3E0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {sImg
+                        ? <img src={sImg} alt={s.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <span style={{ fontSize: 26 }}>🍽️</span>
+                      }
+                    </div>
+                    <div style={{ padding: '6px 8px 8px' }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: '#111', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</p>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: G, margin: '2px 0 0' }}>₹{sPrice.toFixed(2)}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        ))}
+        )}
+
+        {/* ── Bill summary ── */}
+        <div style={{ padding: '12px 16px 4px', borderTop: '1px solid #F1F5F9', marginTop: 4 }}>
+          {[
+            { label: 'Item total', value: cartTotal },
+            { label: 'Delivery fee', value: deliveryFee },
+          ].map(({ label, value }) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
+              <span style={{ fontSize: 13, color: '#666' }}>{label}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>
+                {value === 0 ? 'FREE' : `₹${Number(value).toFixed(0)}`}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Action buttons ── */}
+      <div style={{ padding: '10px 16px calc(env(safe-area-inset-bottom,0px) + 10px)', borderTop: '1px solid #F1F5F9', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={onCheckout}
+          style={{
+            width: '100%', padding: '13px 0',
+            background: `linear-gradient(135deg, ${P}, ${P2})`,
+            border: 'none', borderRadius: 12,
+            color: '#fff', fontSize: 14, fontWeight: 800,
+            cursor: 'pointer', boxShadow: `0 6px 20px ${P}35`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          Proceed to Cart →
+        </motion.button>
+        {onClose && (
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={onClose}
+            style={{
+              width: '100%', padding: '11px 0',
+              background: '#fff', border: `1.5px solid #E5E7EB`,
+              borderRadius: 12, color: '#444', fontSize: 14, fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Keep Adding
+          </motion.button>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────
+// ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function RestaurantMenuPage() {
   const { branchId } = useParams<{ branchId: string }>();
-  const router = useRouter();
+  const router       = useRouter();
 
-  const [info, setInfo]             = useState<RestaurantInfo | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState('');
-  const [addingItem, setAddingItem] = useState<string | null>(null);
-  const [toast, setToast]           = useState('');
-  const [toastOk, setToastOk]       = useState(true);
-  const [cartMap, setCartMap]       = useState<Record<string, number>>({});
-  const [cartItems, setCartItems]   = useState<any[]>([]);
-  const [cartTotal, setCartTotal]   = useState(0);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [orderedMap, setOrderedMap] = useState<Record<string, number>>({});
+  const [info, setInfo]               = useState<RestaurantInfo | null>(null);
+  const [categories, setCategories]   = useState<Category[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [addingItem, setAddingItem]   = useState<string | null>(null);
+  const [toast, setToast]             = useState('');
+  const [toastOk, setToastOk]         = useState(true);
+  const [cartMap, setCartMap]         = useState<Record<string, number>>({});
+  const [cartItems, setCartItems]     = useState<any[]>([]);
+  const [cartTotal, setCartTotal]     = useState(0);
+  const [orderedMap, setOrderedMap]   = useState<Record<string, number>>({});
   const [activeCatId, setActiveCatId] = useState('');
-  const [favorites, setFavorites]   = useState<Set<string>>(new Set());
+  const [favorites, setFavorites]     = useState<Set<string>>(new Set());
   const [previewItem, setPreviewItem] = useState<{ item: MenuItem; idx: number } | null>(null);
 
-  const { setCartCount } = useCartContext();
-  const catTabsRef   = useRef<HTMLDivElement>(null);
-  const sectionRefs  = useRef<Record<string, HTMLElement | null>>({});
+  // New filter / search / sort state
+  const [vegFilter, setVegFilter]     = useState<VegFilter>('all');
+  const [sortBy, setSortBy]           = useState<SortKey>('popularity');
+  const [search, setSearch]           = useState('');
+  const [sortOpen, setSortOpen]       = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
-  // ── Cart helpers ────────────────────────────────────────────────
+  const { setCartCount } = useCartContext();
+  const catSidebarRef = useRef<HTMLDivElement>(null);
+  const sectionRefs   = useRef<Record<string, HTMLElement | null>>({});
+
+  // ── Cart helpers ─────────────────────────────────────────────────────────────
 
   const updateCartState = useCallback((items: any[]) => {
     const map: Record<string, number> = {};
     let total = 0, count = 0;
     items.forEach((ci) => {
-      const id = String(ci.menuItemId ?? ci.id ?? '');
+      const id  = String(ci.menuItemId ?? ci.id ?? '');
       if (!id) return;
       const qty = Number(ci.quantity) || 1;
       map[id] = (map[id] || 0) + qty;
-      total += Number(ci.unitPrice ?? ci.price ?? ci.totalPrice ?? 0) * qty;
-      count += qty;
+      total  += Number(ci.unitPrice ?? ci.price ?? ci.totalPrice ?? 0) * qty;
+      count  += qty;
     });
     setCartMap(map); setCartItems(items); setCartTotal(total); setCartCount(count);
   }, [setCartCount]);
@@ -662,7 +708,7 @@ export default function RestaurantMenuPage() {
   const fetchCart = useCallback(async () => {
     if (!getCustomerToken() || !isCustomerTokenValid()) { clearCustomerTokens(); setCartCount(0); return; }
     try {
-      const res = await customerCartApi.get();
+      const res   = await customerCartApi.get();
       const items: any[] = res.data?.items ?? res.data ?? [];
       updateCartState(Array.isArray(items) ? items : []);
     } catch (e: any) {
@@ -671,27 +717,28 @@ export default function RestaurantMenuPage() {
   }, [updateCartState, setCartCount]);
 
   const getCartEntryByMenuItem = (menuItemId: string) =>
-    cartItems.find((ci) => String(ci.menuItemId ?? ci.id ?? '') === String(menuItemId) || String(ci.id) === String(menuItemId));
+    cartItems.find((ci) => String(ci.menuItemId ?? ci.id ?? '') === String(menuItemId));
 
-  // ── IntersectionObserver for category tab highlight ──────────────
+  // ── IntersectionObserver for sidebar active category ─────────────────────────
 
   useEffect(() => {
     if (categories.length === 0) return;
     const observer = new IntersectionObserver(
-      (entries) => { entries.forEach((e) => { if (e.isIntersecting) { const id = e.target.getAttribute('data-cat-id'); if (id) setActiveCatId(id); } }); },
-      { rootMargin: '-15% 0px -70% 0px' },
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) { const id = e.target.getAttribute('data-cat-id'); if (id) setActiveCatId(id); } }),
+      { rootMargin: '-10% 0px -75% 0px' },
     );
     Object.values(sectionRefs.current).forEach((el) => { if (el) observer.observe(el); });
     return () => observer.disconnect();
   }, [categories]);
 
+  // Scroll active category into view in sidebar
   useEffect(() => {
-    if (!activeCatId || !catTabsRef.current) return;
-    const el = catTabsRef.current.querySelector(`[data-tab="${activeCatId}"]`) as HTMLElement | null;
-    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    if (!activeCatId || !catSidebarRef.current) return;
+    const el = catSidebarRef.current.querySelector(`[data-cat="${activeCatId}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [activeCatId]);
 
-  // ── Data loading ─────────────────────────────────────────────────
+  // ── Data loading ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!branchId) { setLoading(false); return; }
@@ -702,7 +749,7 @@ export default function RestaurantMenuPage() {
           customerDiscoveryApi.restaurantDetails(branchId),
           customerDiscoveryApi.menu(branchId),
         ]);
-        const md = menuRes.data;
+        const md  = menuRes.data;
         const raw = Array.isArray(md?.categories) ? md.categories : Array.isArray(md) ? md : [];
         const cats: Category[] = raw.map((cat: any) => ({
           ...cat,
@@ -716,11 +763,8 @@ export default function RestaurantMenuPage() {
             price: Number(it.price),
           })),
         }));
-        const detailData = detailRes.data;
-        setInfo({
-          ...detailData,
-          imageUrl: detailData.imageUrl ?? detailData.image_url,
-        });
+        const dd = detailRes.data;
+        setInfo({ ...dd, imageUrl: dd.imageUrl ?? dd.image_url });
         setCategories(cats);
         if (cats.length > 0) setActiveCatId(cats[0].id);
       } catch (err: any) {
@@ -733,11 +777,11 @@ export default function RestaurantMenuPage() {
         await fetchCart();
         try {
           const ordersRes = await customerOrdersApi.history(1, 10);
-          const raw = Array.isArray(ordersRes.data) ? ordersRes.data : (ordersRes.data?.orders ?? ordersRes.data?.data ?? []);
+          const rawOrders = Array.isArray(ordersRes.data) ? ordersRes.data : (ordersRes.data?.orders ?? ordersRes.data?.data ?? []);
           const oMap: Record<string, number> = {};
-          await Promise.all(raw.slice(0, 10).map(async (o: any) => {
+          await Promise.all(rawOrders.slice(0, 10).map(async (o: any) => {
             try {
-              const det = await customerOrdersApi.get(o.id ?? o.orderId);
+              const det   = await customerOrdersApi.get(o.id ?? o.orderId);
               const items: any[] = det.data?.items ?? det.data ?? [];
               items.forEach((it) => { const key = String(it.menuItemId ?? it.id ?? it.name ?? ''); if (key) oMap[key] = (oMap[key] || 0) + (it.quantity ?? 1); });
             } catch { /* non-fatal */ }
@@ -748,22 +792,24 @@ export default function RestaurantMenuPage() {
     } else { clearCustomerTokens(); }
   }, [branchId, fetchCart]);
 
-  // ── Pricing helpers ───────────────────────────────────────────────
+  // ── Pricing helpers ───────────────────────────────────────────────────────────
 
   const normRule = (raw: any): PricingRule => ({
-    id: raw.id ?? raw.ruleId ?? `${raw.value}-${raw.valueType}`,
-    ruleType: (String(raw.ruleType ?? raw.rule_type ?? raw.type ?? 'DISCOUNT')).toUpperCase() as PricingRule['ruleType'],
+    id: raw.id ?? `${raw.value}-${raw.valueType}`,
+    ruleType: (String(raw.ruleType ?? raw.type ?? 'DISCOUNT')).toUpperCase() as PricingRule['ruleType'],
     valueType: (String(raw.valueType ?? raw.value_type ?? 'PERCENTAGE')).toUpperCase() as PricingRule['valueType'],
     value: Number(raw.value ?? raw.amount ?? 0),
-    title: raw.title ?? raw.name, startsAt: raw.startsAt ?? raw.starts_at, endsAt: raw.endsAt ?? raw.ends_at,
+    title: raw.title ?? raw.name,
+    startsAt: raw.startsAt ?? raw.starts_at,
+    endsAt: raw.endsAt ?? raw.ends_at,
   });
 
   const getRules = (item: MenuItem) => {
     const r: any[] = [];
-    if (item.pricingRules) r.push(...(Array.isArray(item.pricingRules) ? item.pricingRules : [item.pricingRules]));
+    if (item.pricingRules)  r.push(...(Array.isArray(item.pricingRules) ? item.pricingRules : [item.pricingRules]));
     if (item.pricing_rules) r.push(...(Array.isArray(item.pricing_rules) ? item.pricing_rules : [item.pricing_rules]));
-    if (item.pricingRule) r.push(item.pricingRule);
-    if (item.pricing_rule) r.push(item.pricing_rule);
+    if (item.pricingRule)   r.push(item.pricingRule);
+    if (item.pricing_rule)  r.push(item.pricing_rule);
     if (item.discount && Number(item.discount.value) > 0) r.push({ ruleType: 'DISCOUNT', ...item.discount });
     return r.map(normRule);
   };
@@ -781,7 +827,7 @@ export default function RestaurantMenuPage() {
       })[0];
   };
 
-  const discountedPrice = (item: MenuItem) => {
+  const getDiscountedPrice = (item: MenuItem) => {
     const r = activeRule(item);
     if (!r) return item.price;
     return r.valueType === 'PERCENTAGE'
@@ -789,18 +835,15 @@ export default function RestaurantMenuPage() {
       : Math.max(0, Number((item.price - r.value).toFixed(2)));
   };
 
-  const discountLabel = (item: MenuItem): string | null => {
+  const getDiscountLabel = (item: MenuItem): string | null => {
     const r = activeRule(item);
     if (!r) return null;
     return r.valueType === 'PERCENTAGE' ? `${r.value}% OFF` : `₹${r.value} OFF`;
   };
 
-  // ── Actions ───────────────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────────────────────────
 
-  const showToast = (msg: string, ok = true) => {
-    setToast(msg); setToastOk(ok);
-    setTimeout(() => setToast(''), 2600);
-  };
+  const showToast = (msg: string, ok = true) => { setToast(msg); setToastOk(ok); setTimeout(() => setToast(''), 2600); };
 
   const handleAdd = async (item: MenuItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -809,7 +852,7 @@ export default function RestaurantMenuPage() {
     try {
       await customerCartApi.addItem({ menuItemId: String(item.id), branchId: branchId ? String(branchId) : undefined, quantity: 1 } as AddToCartPayload);
       await fetchCart();
-      showToast(`${item.name} added! 🎉`, true);
+      showToast(`${item.name} added to cart 🎉`, true);
     } catch (err: any) {
       if (err?.response?.status === 401) { clearCustomerTokens(); router.push('/customer/auth/login'); return; }
       showToast(err?.response?.data?.message ?? 'Could not add item', false);
@@ -819,26 +862,38 @@ export default function RestaurantMenuPage() {
   const handleRemove = async (item: MenuItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!getCustomerToken() || !isCustomerTokenValid()) { clearCustomerTokens(); router.push('/customer/auth/login'); return; }
-    const cartEntry = getCartEntryByMenuItem(item.id);
-    if (!cartEntry) return;
-    const cartItemId = String(cartEntry.id ?? cartEntry.menuItemId ?? '');
-    if (!cartItemId) return;
-
+    const cartEntry   = getCartEntryByMenuItem(item.id);
+    if (!cartEntry)   return;
+    const cartItemId  = String(cartEntry.id ?? cartEntry.menuItemId ?? '');
+    if (!cartItemId)  return;
     setAddingItem(item.id);
     try {
       const qty = Number(cartEntry.quantity) || 1;
-      if (qty > 1) {
-        await customerCartApi.updateItem(cartItemId, qty - 1);
-        showToast(`${item.name} quantity updated.`, true);
-      } else {
-        await customerCartApi.removeItem(cartItemId);
-        showToast(`${item.name} removed!`, true);
-      }
+      if (qty > 1) await customerCartApi.updateItem(cartItemId, qty - 1);
+      else         await customerCartApi.removeItem(cartItemId);
       await fetchCart();
+      showToast(`${item.name} updated.`, true);
     } catch (err: any) {
       if (err?.response?.status === 401) { clearCustomerTokens(); router.push('/customer/auth/login'); return; }
       showToast(err?.response?.data?.message ?? 'Could not update cart', false);
     } finally { setAddingItem(null); }
+  };
+
+  const handleCartItemAdd = async (ci: any) => {
+    const menuItemId = String(ci.menuItemId ?? ci.id ?? '');
+    const item = categories.flatMap((c) => c.items).find((it) => String(it.id) === menuItemId);
+    if (item) await handleAdd(item);
+  };
+
+  const handleCartItemRemove = async (ci: any) => {
+    const cartItemId = String(ci.id ?? '');
+    if (!cartItemId) return;
+    try {
+      const qty = Number(ci.quantity) || 1;
+      if (qty > 1) await customerCartApi.updateItem(cartItemId, qty - 1);
+      else         await customerCartApi.removeItem(cartItemId);
+      await fetchCart();
+    } catch { /* non-fatal */ }
   };
 
   const handleToggleFav = (itemId: string, e: React.MouseEvent) => {
@@ -852,31 +907,68 @@ export default function RestaurantMenuPage() {
   };
 
   const scrollToCat = (catId: string) => {
-    const el = sectionRefs.current[catId];
-    if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY - 116;
+    const el  = sectionRefs.current[catId];
+    if (!el)  return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 80;
     window.scrollTo({ top, behavior: 'smooth' });
+    setActiveCatId(catId);
   };
 
-  // ── Render guards ─────────────────────────────────────────────────
+  // ── Derived: filtered + sorted categories ────────────────────────────────────
+
+  const allItems = useMemo(() => categories.flatMap((c) => c.items), [categories]);
+
+  const filteredCategories = useMemo(() => {
+    return categories.map((cat) => ({
+      ...cat,
+      items: cat.items
+        .filter((item) => {
+          if (vegFilter === 'veg')    return item.isVeg === true;
+          if (vegFilter === 'nonveg') return item.isVeg === false;
+          return true;
+        })
+        .filter((item) => {
+          if (!search.trim()) return true;
+          const q = search.toLowerCase();
+          return item.name.toLowerCase().includes(q) || item.description?.toLowerCase().includes(q);
+        })
+        .sort((a, b) => {
+          if (sortBy === 'price-low')  return getDiscountedPrice(a) - getDiscountedPrice(b);
+          if (sortBy === 'price-high') return getDiscountedPrice(b) - getDiscountedPrice(a);
+          if (sortBy === 'rating') {
+            const idxA = allItems.indexOf(a);
+            const idxB = allItems.indexOf(b);
+            return parseFloat(getRating(idxB)) - parseFloat(getRating(idxA));
+          }
+          return 0;
+        }),
+    })).filter((cat) => cat.items.length > 0);
+  }, [categories, vegFilter, search, sortBy, allItems]);
+
+  const totalItems = cartItems.reduce((s, ci) => s + (Number(ci.quantity) || 1), 0);
+  const SORT_LABELS: Record<SortKey, string> = {
+    popularity: 'Popularity', 'price-low': 'Price: Low to High',
+    'price-high': 'Price: High to Low', rating: 'Rating',
+  };
+
+  // ── Render guards ─────────────────────────────────────────────────────────────
 
   if (loading) return <PageSkeleton />;
 
   if (error) return (
     <div style={{ background: BG, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
       <div style={{ fontSize: 56 }}>😕</div>
-      <p style={{ fontSize: 16, fontWeight: 700, color: CREAM, marginTop: 16, textAlign: 'center' }}>{error}</p>
-      <button onClick={() => router.back()} style={{ marginTop: 20, background: `linear-gradient(135deg, ${GOLD_DK}, ${GOLD})`, color: '#0D0906', border: 'none', borderRadius: 999, padding: '10px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>← Go Back</button>
+      <p style={{ fontSize: 16, fontWeight: 700, color: TX, marginTop: 16, textAlign: 'center' }}>{error}</p>
+      <button onClick={() => router.back()} style={{ marginTop: 20, background: `linear-gradient(135deg,${P},${P2})`, color: '#fff', border: 'none', borderRadius: 999, padding: '10px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>← Go Back</button>
     </div>
   );
 
-  const totalItems = cartItems.reduce((s, ci) => s + (Number(ci.quantity) || 1), 0);
-  const allItems   = categories.flatMap((c) => c.items);
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ background: BG, minHeight: '100vh', paddingBottom: totalItems > 0 ? 220 : 100 }}>
+    <div style={{ background: BG, minHeight: '100vh' }}>
 
-      {/* ── Toast ─────────────────────────────────────────────── */}
+      {/* ── Toast ─────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -885,27 +977,25 @@ export default function RestaurantMenuPage() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             style={{
-              position: 'fixed', bottom: 148, left: '50%', transform: 'translateX(-50%)',
-              zIndex: 120, whiteSpace: 'nowrap',
-              background: toastOk ? 'var(--surface)' : 'rgba(239,68,68,0.12)',
-              border: toastOk ? '1px solid color-mix(in srgb, var(--accent) 40%, transparent)' : '1px solid rgba(239,68,68,0.3)',
+              position: 'fixed', bottom: totalItems > 0 ? 90 : 24, left: '50%',
+              transform: 'translateX(-50%)', zIndex: 200, whiteSpace: 'nowrap',
+              background: toastOk ? TX : '#FEE2E2',
               borderRadius: 999, padding: '10px 22px',
               fontSize: 13, fontWeight: 600,
-              color: toastOk ? GOLD_LT : '#FCA5A5',
-              backdropFilter: 'blur(24px)',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+              color: toastOk ? '#fff' : R,
+              boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
             }}
           >{toast}</motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Quick View Modal ─────────────────────────────────── */}
+      {/* ── Quick View Modal ───────────────────────────────────────────── */}
       {previewItem && (
         <QuickViewModal
           item={previewItem.item}
           idx={previewItem.idx}
-          discountedPrice={discountedPrice(previewItem.item)}
-          discountLabel={discountLabel(previewItem.item)}
+          discountedPrice={getDiscountedPrice(previewItem.item)}
+          discountLabel={getDiscountLabel(previewItem.item)}
           cartQty={cartMap[String(previewItem.item.id)] || 0}
           isAdding={addingItem === previewItem.item.id}
           onAdd={() => handleAdd(previewItem.item)}
@@ -914,342 +1004,441 @@ export default function RestaurantMenuPage() {
         />
       )}
 
-      {/* ── Restaurant Hero ──────────────────────────────────── */}
-      {info && (
-        <>
-          <div style={{ position: 'relative', height: 210, overflow: 'hidden' }}>
-            {info.imageUrl ? (
-              <img src={resolveMediaUrl(info.imageUrl)} alt={info.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ width: '100%', height: '100%', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 80, opacity: 0.35 }}>🍽️</div>
-            )}
-            {/* Gradient overlay — name readable on any image */}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,6,0,0.2) 0%, rgba(10,6,0,0.92) 100%)' }} />
-            {/* Restaurant name overlaid on hero */}
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 16px 16px' }}>
-              <h1 style={{ fontSize: 24, fontWeight: 900, color: '#FFFFFF', margin: 0, lineHeight: 1.15, textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>{info.name}</h1>
-              {info.cuisine && <p style={{ fontSize: 13, color: 'rgba(212,175,55,0.65)', marginTop: 3 }}>{info.cuisine}</p>}
-            </div>
-            {/* Gold shimmer top edge */}
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(212,160,23,0.4), transparent)' }} />
-          </div>
+      {/* ── Mobile Cart Bottom Sheet ───────────────────────────────────── */}
+      <AnimatePresence>
+        {mobileCartOpen && totalItems > 0 && (
+          <>
+            <motion.div key="cart-bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setMobileCartOpen(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 95, background: 'rgba(0,0,0,0.5)' }} />
+            <motion.div key="cart-sheet"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 32, stiffness: 300 }}
+              style={{
+                position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 96,
+                height: '80vh', borderRadius: '24px 24px 0 0', overflow: 'hidden',
+                boxShadow: '0 -20px 60px rgba(0,0,0,0.25)',
+              }}
+            >
+              <CartPanel
+                cartItems={cartItems} cartTotal={cartTotal}
+                onClose={() => setMobileCartOpen(false)}
+                onAdd={handleCartItemAdd} onRemove={handleCartItemRemove}
+                onCheckout={() => router.push('/customer/checkout')}
+                deliveryFee={info?.deliveryFee ?? 0}
+                restaurantName={info?.name}
+                suggestions={categories.flatMap(c => c.items).filter(it => !cartItems.some(ci => String(ci.menuItemId ?? ci.id) === String(it.id))).slice(0, 5)}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
-          {/* Stats bar */}
-          <div style={{ background: 'var(--surface-2)', borderBottom: '1px solid rgba(212,160,23,0.14)', padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {info.rating != null && (
-              <span style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: '#4ade80' }}>★ {info.rating.toFixed(1)}</span>
-            )}
-            {info.deliveryTime != null && (
-              <span style={{ background: 'rgba(212,160,23,0.08)', border: '1px solid rgba(212,160,23,0.18)', borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 600, color: 'rgba(212,175,55,0.72)' }}>🕒 {info.deliveryTime} min</span>
-            )}
-            {info.deliveryFee != null && (
-              <span style={{
-                background: info.deliveryFee === 0 ? 'rgba(74,222,128,0.08)' : 'rgba(212,160,23,0.08)',
-                border: `1px solid ${info.deliveryFee === 0 ? 'rgba(74,222,128,0.2)' : 'rgba(212,160,23,0.18)'}`,
-                borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 600,
-                color: info.deliveryFee === 0 ? '#4ade80' : 'rgba(212,175,55,0.72)',
-              }}>
-                {info.deliveryFee === 0 ? '✓ Free delivery' : `🛵 ₹${info.deliveryFee} delivery`}
-              </span>
-            )}
-            {favorites.size > 0 && (
-              <span style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 600, color: '#f87171' }}>
-                ❤️ {favorites.size} saved
-              </span>
-            )}
-          </div>
-        </>
+      {/* ── Sort dropdown backdrop ─────────────────────────────────────── */}
+      {sortOpen && (
+        <div onClick={() => setSortOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 50 }} />
       )}
 
-      {/* ── Sticky Category Tabs ─────────────────────────────── */}
-      {categories.length > 1 && (
-        <div
-          className="sticky z-30"
-          style={{ top: 64, background: 'color-mix(in srgb, var(--surface) 97%, transparent)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}
+      {/* ── Restaurant Hero ────────────────────────────────────────────── */}
+      {info && (
+        <div style={{ position: 'relative', height: 240, overflow: 'hidden', background: 'linear-gradient(135deg,#1E0050,#4C1D95)' }}>
+          {info.imageUrl ? (
+            <img src={resolveMediaUrl(info.imageUrl)} alt={info.name} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 100, opacity: 0.2 }}>🍽️</div>
+          )}
+          {/* Gradient overlay */}
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.75) 100%)' }} />
+
+          {/* Back button */}
+          <button
+            onClick={() => router.back()}
+            style={{
+              position: 'absolute', top: 16, left: 16,
+              width: 38, height: 38, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <ArrowLeft size={18} color="#fff" />
+          </button>
+
+          {/* Info overlay */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px' }}>
+            <h1 style={{ fontSize: 26, fontWeight: 900, color: '#fff', margin: 0, lineHeight: 1.2, textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>{info.name}</h1>
+            {info.cuisine && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{info.cuisine}</p>}
+
+            {/* Stats pills */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              {info.rating != null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', borderRadius: 999, padding: '4px 12px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                  <Star size={11} fill="#FBBF24" color="#FBBF24" />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{info.rating.toFixed(1)}</span>
+                </div>
+              )}
+              {info.deliveryTime != null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', borderRadius: 999, padding: '4px 12px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                  <Clock size={11} color="#fff" />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{info.deliveryTime} min</span>
+                </div>
+              )}
+              {info.deliveryFee != null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: info.deliveryFee === 0 ? 'rgba(22,163,74,0.3)' : 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', borderRadius: 999, padding: '4px 12px', border: `1px solid ${info.deliveryFee === 0 ? 'rgba(22,163,74,0.5)' : 'rgba(255,255,255,0.2)'}` }}>
+                  <Truck size={11} color={info.deliveryFee === 0 ? '#86EFAC' : '#fff'} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: info.deliveryFee === 0 ? '#86EFAC' : '#fff' }}>
+                    {info.deliveryFee === 0 ? 'Free Delivery' : `₹${info.deliveryFee}`}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main 3-column Layout ───────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', maxWidth: 1400, margin: '0 auto' }}>
+
+        {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════ */}
+        <aside
+          ref={catSidebarRef}
+          className="hidden lg:flex"
+          style={{
+            width: 260, flexShrink: 0,
+            position: 'sticky', top: 0, height: '100vh',
+            overflowY: 'auto', flexDirection: 'column',
+            background: CARD,
+            borderRight: '1px solid #E5E7EB',
+            boxShadow: '2px 0 12px rgba(0,0,0,0.04)',
+          }}
         >
-          <div ref={catTabsRef} className="flex overflow-x-auto scrollbar-hide" style={{ padding: '0 10px' }}>
+          <div style={{ padding: '20px 16px 12px' }}>
+            <p style={{ fontSize: 11, fontWeight: 800, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+              Menu
+            </p>
+            <p style={{ fontSize: 12, color: MUTED, margin: 0 }}>
+              {categories.reduce((s, c) => s + c.items.length, 0)} items
+            </p>
+          </div>
+
+          <nav style={{ padding: '0 10px 20px', display: 'flex', flexDirection: 'column', gap: 2 }}>
             {categories.map((cat) => {
               const isActive = activeCatId === cat.id;
+              const emoji    = getCatEmoji(cat.displayName || cat.name);
               return (
                 <button
-                  key={cat.id} data-tab={cat.id}
+                  key={cat.id}
+                  data-cat={cat.id}
                   onClick={() => scrollToCat(cat.id)}
                   style={{
-                    flexShrink: 0, padding: '13px 16px', fontSize: 13,
-                    fontWeight: isActive ? 800 : 500,
-                    color: isActive ? 'var(--accent)' : 'var(--tx-3)',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    borderBottom: `2.5px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
-                    whiteSpace: 'nowrap', transition: 'all 0.2s ease',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '11px 14px',
+                    background: isActive ? `${P}10` : 'transparent',
+                    border: 'none',
+                    borderLeft: `3px solid ${isActive ? P : 'transparent'}`,
+                    borderRadius: '0 12px 12px 0',
+                    cursor: 'pointer', textAlign: 'left' as const,
+                    transition: 'all 0.18s ease',
                   }}
                 >
-                  {cat.displayName || cat.name}
-                  <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.5 }}>({cat.items.length})</span>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>{emoji}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? P : TX, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {cat.displayName || cat.name}
+                  </span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, flexShrink: 0,
+                    background: isActive ? P : '#F1F5F9',
+                    color: isActive ? '#fff' : MUTED,
+                    padding: '1px 7px', borderRadius: 999,
+                    transition: 'all 0.18s ease',
+                  }}>
+                    {cat.items.length}
+                  </span>
                 </button>
               );
             })}
-          </div>
-        </div>
-      )}
+          </nav>
+        </aside>
 
-      {/* ── Menu Sections ────────────────────────────────────── */}
-      {categories.length === 0 ? (
-        <div style={{ padding: '80px 16px', textAlign: 'center' }}>
-          <div style={{ fontSize: 56 }}>🍽️</div>
-          <p style={{ fontSize: 16, fontWeight: 700, color: CREAM, marginTop: 16 }}>Menu not available</p>
-          <p style={{ fontSize: 13, color: 'var(--tx-3)', marginTop: 6 }}>Check back soon</p>
-        </div>
-      ) : (
-        <div style={{ paddingBottom: 16 }}>
-          {categories.map((cat, catIdx) => (
-            <section
-              key={cat.id} data-cat-id={cat.id}
-              ref={(el) => { sectionRefs.current[cat.id] = el; }}
-              style={{ marginTop: catIdx === 0 ? 8 : 0 }}
-            >
-              {/* ── Category header ─────────────────────────────── */}
-              <div style={{ padding: '20px 12px 12px' }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  background: 'var(--surface)',
-                  border: '1.5px solid var(--border)',
-                  borderRadius: 18,
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-                }}>
-                  {/* Left: emoji icon + name */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 22,
-                      background: 'color-mix(in srgb, var(--accent) 10%, var(--surface-2))',
-                      border: '1.5px solid color-mix(in srgb, var(--accent) 22%, transparent)',
-                    }}>
-                      {getCatEmoji(cat.displayName || cat.name)}
-                    </div>
-                    <div>
-                      <h2 style={{ fontSize: 15, fontWeight: 900, color: 'var(--tx)', margin: 0, letterSpacing: '0.01em' }}>
-                        {cat.displayName || cat.name}
-                      </h2>
-                      <p style={{ fontSize: 11, color: 'var(--tx-3)', margin: '2px 0 0' }}>
-                        {cat.items.length} item{cat.items.length !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                  </div>
-                  {/* Right: count pill */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    background: 'color-mix(in srgb, var(--accent) 10%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
-                    borderRadius: 999, padding: '4px 12px',
-                  }}>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)' }}>
-                      {cat.items.length}
-                    </span>
-                    <span style={{ fontSize: 10, color: 'var(--accent)', opacity: 0.7 }}>items</span>
-                  </div>
-                </div>
-              </div>
+        {/* ══ CENTER CONTENT ════════════════════════════════════════════ */}
+        <main style={{ flex: 1, minWidth: 0 }}>
 
-              {/* ── Items grid ───────────────────────────────────── */}
-              <div
-                className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                style={{ padding: '0 12px' }}
-              >
-                {cat.items.map((item, localIdx) => {
-                  const globalItemIdx = allItems.findIndex((i) => i.id === item.id);
-                  const effectiveIdx  = globalItemIdx >= 0 ? globalItemIdx : localIdx;
+          {/* ── Sticky Filter Bar ───────────────────────────────────── */}
+          <div style={{
+            position: 'sticky', top: 0, zIndex: 40,
+            background: 'rgba(248,250,252,0.95)', backdropFilter: 'blur(20px)',
+            borderBottom: '1px solid #E5E7EB',
+            padding: '12px 16px',
+          }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+
+              {/* Veg filter pills */}
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                {([['all', 'All'], ['veg', 'Veg'], ['nonveg', 'Non Veg']] as [VegFilter, string][]).map(([key, label]) => {
+                  const active = vegFilter === key;
+                  const color  = key === 'veg' ? G : key === 'nonveg' ? R : P;
                   return (
-                    <MenuItemCard
-                      key={item.id}
-                      item={item}
-                      idx={effectiveIdx}
-                      discountedPrice={discountedPrice(item)}
-                      discountLabel={discountLabel(item)}
-                      cartQty={cartMap[String(item.id)] || 0}
-                      orderedQty={orderedMap[String(item.id)] || orderedMap[String(item.name)] || 0}
-                      isFav={favorites.has(item.id)}
-                      isAdding={addingItem === item.id}
-                      onAdd={(e) => handleAdd(item, e)}
-                      onRemove={(e) => handleRemove(item, e)}
-                      onToggleFav={(e) => handleToggleFav(item.id, e)}
-                      onQuickView={() => setPreviewItem({ item, idx: effectiveIdx })}
-                    />
+                    <button
+                      key={key}
+                      onClick={() => setVegFilter(key)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '6px 14px', borderRadius: 999,
+                        border: `1.5px solid ${active ? color : '#E5E7EB'}`,
+                        background: active ? `${color}12` : CARD,
+                        fontSize: 12, fontWeight: active ? 700 : 500,
+                        color: active ? color : MUTED,
+                        cursor: 'pointer', transition: 'all 0.15s ease',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {key === 'veg'    && <Leaf size={11} color={active ? G : MUTED} />}
+                      {key === 'nonveg' && <Flame size={11} color={active ? R : MUTED} />}
+                      {label}
+                    </button>
                   );
                 })}
               </div>
 
-              {/* ── Section divider ──────────────────────────────── */}
-              <div style={{
-                height: 1, margin: '20px 12px 0',
-                background: 'linear-gradient(90deg, transparent, var(--border) 20%, var(--border) 80%, transparent)',
-              }} />
-            </section>
-          ))}
-        </div>
-      )}
+              {/* Search */}
+              <div style={{ flex: 1, minWidth: 160, position: 'relative' }}>
+                <Search size={14} color={MUTED} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search your favourite food..."
+                  style={{
+                    width: '100%', height: 38, borderRadius: 10,
+                    border: '1.5px solid #E5E7EB',
+                    background: CARD, paddingLeft: 36, paddingRight: search ? 32 : 12,
+                    fontSize: 13, color: TX, outline: 'none',
+                    fontFamily: 'inherit',
+                    transition: 'border-color 0.15s',
+                    boxSizing: 'border-box' as const,
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = P; }}
+                  onBlur={(e)  => { e.currentTarget.style.borderColor = '#E5E7EB'; }}
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                    <X size={12} color={MUTED} />
+                  </button>
+                )}
+              </div>
 
-      {/* ── Floating Cart Bar ────────────────────────────────── */}
+              {/* Sort dropdown */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <button
+                  onClick={() => setSortOpen(!sortOpen)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '7px 13px', borderRadius: 10,
+                    border: '1.5px solid #E5E7EB', background: CARD,
+                    fontSize: 12, fontWeight: 500, color: MUTED,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <SlidersHorizontal size={13} />
+                  <span className="hidden sm:inline">{SORT_LABELS[sortBy]}</span>
+                  <span className="sm:hidden">Sort</span>
+                  <ChevronDown size={12} style={{ transform: sortOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                </button>
+                <AnimatePresence>
+                  {sortOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                      style={{
+                        position: 'absolute', right: 0, top: '110%',
+                        background: CARD, borderRadius: 14,
+                        border: '1px solid #E5E7EB', boxShadow: '0 12px 40px rgba(0,0,0,0.12)',
+                        zIndex: 60, minWidth: 200, overflow: 'hidden',
+                      }}
+                    >
+                      {(Object.entries(SORT_LABELS) as [SortKey, string][]).map(([key, label]) => (
+                        <button
+                          key={key}
+                          onClick={() => { setSortBy(key); setSortOpen(false); }}
+                          style={{
+                            width: '100%', padding: '12px 16px', border: 'none',
+                            background: sortBy === key ? `${P}08` : 'transparent',
+                            textAlign: 'left' as const, fontSize: 13,
+                            fontWeight: sortBy === key ? 700 : 400,
+                            color: sortBy === key ? P : TX,
+                            cursor: 'pointer', display: 'block',
+                            borderLeft: `3px solid ${sortBy === key ? P : 'transparent'}`,
+                          }}
+                        >{label}</button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* Mobile: horizontal category tabs */}
+            {categories.length > 1 && (
+              <div className="flex lg:hidden overflow-x-auto" style={{ gap: 6, marginTop: 10, paddingBottom: 2 }}>
+                {categories.map((cat) => {
+                  const isActive = activeCatId === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => scrollToCat(cat.id)}
+                      style={{
+                        flexShrink: 0, padding: '6px 14px',
+                        border: `1.5px solid ${isActive ? P : '#E5E7EB'}`,
+                        borderRadius: 999, background: isActive ? `${P}12` : CARD,
+                        fontSize: 12, fontWeight: isActive ? 700 : 500,
+                        color: isActive ? P : MUTED, cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {cat.displayName || cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── Menu Sections ────────────────────────────────────────── */}
+          {filteredCategories.length === 0 ? (
+            <div style={{ padding: '80px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 60, marginBottom: 16 }}>🍽️</div>
+              <p style={{ fontSize: 18, fontWeight: 700, color: TX }}>No items found</p>
+              <p style={{ fontSize: 14, color: MUTED, marginTop: 6 }}>
+                {search ? `No results for "${search}"` : 'Try changing your filter'}
+              </p>
+              <button onClick={() => { setSearch(''); setVegFilter('all'); }} style={{ marginTop: 16, padding: '10px 24px', background: `linear-gradient(135deg,${P},${P2})`, color: '#fff', border: 'none', borderRadius: 999, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                Clear Filters
+              </button>
+            </div>
+          ) : (
+            <div style={{ padding: '8px 0 120px' }}>
+              {filteredCategories.map((cat, catIdx) => (
+                <section
+                  key={cat.id}
+                  data-cat-id={cat.id}
+                  ref={(el) => { sectionRefs.current[cat.id] = el; }}
+                >
+                  {/* Category header */}
+                  <div style={{ padding: '20px 16px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 24 }}>{getCatEmoji(cat.displayName || cat.name)}</span>
+                      <div>
+                        <h2 style={{ fontSize: 18, fontWeight: 800, color: TX, margin: 0 }}>
+                          {cat.displayName || cat.name}
+                        </h2>
+                        <p style={{ fontSize: 12, color: MUTED, margin: '2px 0 0' }}>
+                          {cat.items.length} item{cat.items.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ height: 2, background: `linear-gradient(90deg,${P}30,transparent)`, marginTop: 12, borderRadius: 2 }} />
+                  </div>
+
+                  {/* 3-column grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 16, padding: '0 16px 8px' }}>
+                    {cat.items.map((item) => {
+                      const globalIdx = allItems.indexOf(item);
+                      const idx       = globalIdx >= 0 ? globalIdx : catIdx;
+                      return (
+                        <MenuItemCard
+                          key={item.id}
+                          item={item}
+                          idx={idx}
+                          discountedPrice={getDiscountedPrice(item)}
+                          discountLabel={getDiscountLabel(item)}
+                          cartQty={cartMap[String(item.id)] || 0}
+                          orderedQty={orderedMap[String(item.id)] || 0}
+                          isFav={favorites.has(item.id)}
+                          isAdding={addingItem === item.id}
+                          onAdd={(e) => handleAdd(item, e)}
+                          onRemove={(e) => handleRemove(item, e)}
+                          onToggleFav={(e) => handleToggleFav(item.id, e)}
+                          onQuickView={() => setPreviewItem({ item, idx })}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </main>
+
+        {/* ══ RIGHT CART PANEL (desktop) ════════════════════════════════ */}
+        <AnimatePresence>
+          {totalItems > 0 && (
+            <motion.aside
+              key="cart-panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 360, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 260 }}
+              className="hidden lg:block"
+              style={{
+                flexShrink: 0, position: 'sticky', top: 0,
+                height: '100vh', overflow: 'hidden',
+              }}
+            >
+              <CartPanel
+                cartItems={cartItems}
+                cartTotal={cartTotal}
+                onAdd={handleCartItemAdd}
+                onRemove={handleCartItemRemove}
+                onCheckout={() => router.push('/customer/checkout')}
+                deliveryFee={info?.deliveryFee ?? 0}
+                restaurantName={info?.name}
+                suggestions={categories.flatMap(c => c.items).filter(it => !cartItems.some(ci => String(ci.menuItemId ?? ci.id) === String(it.id))).slice(0, 5)}
+              />
+            </motion.aside>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ── Mobile floating cart button ────────────────────────────────── */}
       <AnimatePresence>
-        {totalItems > 0 && !drawerOpen && (
+        {totalItems > 0 && (
           <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: [0, -6, 0], opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            transition={{
-              opacity: { duration: 0.3 },
-              y: {
-                times: [0, 0.5, 1],
-                duration: 1.8,
-                repeat: Infinity,
-                repeatType: 'loop',
-                ease: 'easeInOut',
-              },
+            key="mobile-cart"
+            className="lg:hidden"
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            style={{
+              position: 'fixed', bottom: 16, left: 16, right: 16, zIndex: 80,
             }}
-            style={{ position: 'fixed', left: '50%', bottom: 82, zIndex: 60, transform: 'translateX(-50%)', width: 'clamp(320px, min(92vw, 420px), 420px)' }}
           >
             <motion.button
-              whileTap={{ scale: 0.96 }}
-              onClick={() => setDrawerOpen(true)}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setMobileCartOpen(true)}
               style={{
-                width: '100%', cursor: 'pointer', borderRadius: 999,
-                background: `linear-gradient(135deg, #7C3AED 0%, #6D28D9 54%, #5B21B6 100%)`,
-                padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                boxShadow: '0 20px 55px rgba(109,40,217,0.35)',
-                border: '1px solid rgba(255,255,255,0.18)',
-                backdropFilter: 'blur(10px)',
+                width: '100%', padding: '14px 20px',
+                background: `linear-gradient(135deg, ${P}, ${P2})`,
+                border: 'none', borderRadius: 18,
+                color: '#fff', fontSize: 15, fontWeight: 800,
+                cursor: 'pointer', boxShadow: `0 12px 40px ${P}50`,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 900, color: '#ffffff' }}>
-                  {totalItems} {totalItems === 1 ? 'item' : 'items'}
-                </span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#ffffff' }}>View Cart</span>
+                <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>
+                  {totalItems}
+                </div>
+                <span>View Cart</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 16, fontWeight: 900, color: '#ffffff' }}>₹{cartTotal.toFixed(0)}</span>
-                <span style={{ fontSize: 20, color: '#ffffff', fontWeight: 700 }}>›</span>
-              </div>
+              <span style={{ fontSize: 15, fontWeight: 800 }}>₹{cartTotal.toFixed(2)}</span>
             </motion.button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Cart Drawer ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {drawerOpen && (
-          <>
-            <motion.div key="cd-bg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDrawerOpen(false)}
-              style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.74)', backdropFilter: 'blur(5px)' }}
-            />
-            <motion.div key="cd-drawer"
-              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-              style={{
-                position: 'fixed', right: 0, top: 0, bottom: 0, zIndex: 51,
-                width: 'clamp(320px, 100%, 420px)', maxWidth: 420,
-                background: '#f9fafb',
-                borderLeft: '1px solid #e5e7eb',
-                boxShadow: '-14px 0 64px rgba(15,23,42,0.12)',
-                display: 'flex', flexDirection: 'column',
-              }}
-            >
-              {/* Header */}
-              <div style={{ padding: '18px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ffffff' }}>
-                <div>
-                  <p style={{ fontSize: 17, fontWeight: 800, color: '#111827', margin: 0 }}>Your Cart</p>
-                  <p style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>
-                    {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}{info?.name ? ` · ${info.name}` : ''}
-                  </p>
-                </div>
-                <button onClick={() => setDrawerOpen(false)}
-                  style={{ width: 34, height: 34, borderRadius: '50%', background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>✕</button>
-              </div>
-
-              {/* Items */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {cartItems.map((ci, i) => {
-                  const qty      = Number(ci.quantity) || 1;
-                  const price    = Number(ci.unitPrice ?? ci.price ?? ci.totalPrice ?? 0);
-                  const itemName = ci.menuItemName ?? ci.name ?? ci.title ?? 'Item';
-                  const menuItem = allItems.find((it) => String(it.id) === String(ci.menuItemId));
-                  const imgUrl   = menuItem?.imageUrl ?? ci.imageUrl ?? null;
-                  return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '12px 14px' }}>
-                      <div style={{ width: 54, height: 54, borderRadius: 12, overflow: 'hidden', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {imgUrl ? (
-                          <img src={resolveMediaUrl(imgUrl)} alt={itemName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <span style={{ fontSize: 22 }}>{foodEmoji(i)}</span>
-                        )}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p className="truncate" style={{ fontSize: 14, fontWeight: 700, color: '#111827', margin: 0 }}>{itemName}</p>
-                        <p style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>₹{price.toFixed(0)} × {qty}</p>
-                      </div>
-                      <p style={{ fontSize: 15, fontWeight: 800, color: '#1BA672', flexShrink: 0 }}>₹{(price * qty).toFixed(0)}</p>
-                    </div>
-                  );
-                })}
-
-                {/* Suggested items */}
-                {allItems.length > cartItems.length && (
-                  <div style={{ marginTop: 4, padding: '14px', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 14 }}>
-                    <p style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#1BA672', marginBottom: 10 }}>You might also like</p>
-                    <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }} className="scrollbar-hide">
-                      {allItems.slice(0, 4).map((it, i) => {
-                        const dp = discountedPrice(it);
-                        return (
-                          <button key={it.id} onClick={() => { setDrawerOpen(false); setPreviewItem({ item: it, idx: i }); }}
-                            style={{ flexShrink: 0, width: 110, textAlign: 'left', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: '8px', cursor: 'pointer' }}>
-                            <div style={{ height: 60, borderRadius: 8, overflow: 'hidden', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-                              {it.imageUrl ? <img src={resolveMediaUrl(it.imageUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 22 }}>{foodEmoji(i)}</span>}
-                            </div>
-                            <p className="truncate" style={{ fontSize: 10, fontWeight: 700, color: '#111827', margin: 0 }}>{it.name}</p>
-                            <p style={{ fontSize: 10, color: '#1BA672', marginTop: 2, fontWeight: 700 }}>₹{dp % 1 === 0 ? dp : dp.toFixed(2)}</p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div style={{ padding: '16px 20px', borderTop: '1px solid #e5e7eb', background: '#ffffff' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, color: '#6b7280' }}>Item total</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#111827' }}>₹{cartTotal.toFixed(0)}</span>
-                </div>
-                {info?.deliveryFee != null && info.deliveryFee > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ fontSize: 13, color: '#6b7280' }}>Delivery fee</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>₹{info.deliveryFee}</span>
-                  </div>
-                )}
-                {info?.deliveryFee === 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ fontSize: 13, color: '#1BA672', fontWeight: 600 }}>✓ Free delivery</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1BA672' }}>₹0</span>
-                  </div>
-                )}
-                <div style={{ height: 1, background: '#f3f4f6', margin: '12px 0' }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
-                  <button onClick={() => { setDrawerOpen(false); router.push('/customer/cart'); }}
-                    style={{ width: '100%', background: '#1BA672', border: 'none', borderRadius: 12, padding: '14px 0', fontSize: 15, fontWeight: 800, color: '#ffffff', cursor: 'pointer', letterSpacing: '0.01em', boxShadow: '0 4px 16px rgba(27,166,114,0.28)' }}>
-                    Proceed to Cart →
-                  </button>
-                  <button onClick={() => setDrawerOpen(false)}
-                    style={{ width: '100%', background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: 12, padding: '12px 0', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
-                    Keep Adding
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

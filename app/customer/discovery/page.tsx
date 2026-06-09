@@ -553,349 +553,179 @@ export default function DiscoveryPage() {
         </div>
       </div>
 
-      {/* ── HERO SECTION — L99 PREMIUM ────────────────────────────────────── */}
+      {/* ── HERO SECTION — CINEMATIC VIDEO BG ────────────────────────────── */}
       <section
-        className="relative overflow-hidden"
-        style={{
-          background: 'linear-gradient(150deg, #0D0030 0%, #160050 18%, #2A0880 42%, #3D12B0 65%, #5420C8 82%, #6D28D9 100%)',
-          minHeight: 520,
-        }}
+        className="relative overflow-hidden flex items-center"
+        style={{ height: 'calc(100vh - 92px)', minHeight: 480 }}
       >
-        {/* Dot-grid texture overlay */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.045) 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
-          }}
+
+        {/* ── Full-bleed background video ── */}
+        <video
+          src="/herosection.mp4"
+          autoPlay loop muted playsInline
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ zIndex: 0 }}
         />
 
-        {/* Layered ambient orbs */}
-        <div
-          className="pointer-events-none absolute -right-32 -top-32 h-[560px] w-[560px] rounded-full opacity-25 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #A78BFA 0%, #7C3AED 45%, transparent 75%)' }}
-        />
-        <div
-          className="pointer-events-none absolute bottom-0 left-0 h-80 w-80 -translate-x-1/3 translate-y-1/3 rounded-full opacity-20 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #E879F9 0%, #9333EA 55%, transparent 75%)' }}
-        />
-        <div
-          className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-10 blur-2xl"
-          style={{ background: 'radial-gradient(circle, #818CF8 0%, transparent 70%)' }}
-        />
-        {/* Top highlight edge */}
-        <div
-          className="pointer-events-none absolute left-0 right-0 top-0 h-px"
-          style={{ background: 'linear-gradient(90deg, transparent, rgba(196,181,253,0.5) 30%, rgba(196,181,253,0.5) 70%, transparent)' }}
-        />
+        {/* ── Overlays ── */}
+        {/* Solid dark panel on the left so text is always crisp */}
+        <div className="pointer-events-none absolute inset-0" style={{ zIndex: 1, background: 'linear-gradient(to right, rgba(4,0,15,0.92) 0%, rgba(4,0,15,0.82) 35%, rgba(4,0,15,0.45) 58%, rgba(4,0,15,0.10) 75%, transparent 100%)' }} />
+        {/* Top dark fade */}
+        <div className="pointer-events-none absolute top-0 left-0 right-0 h-20" style={{ zIndex: 1, background: 'linear-gradient(to bottom, rgba(4,0,15,0.60) 0%, transparent 100%)' }} />
+        {/* Bottom fade into page bg */}
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32" style={{ zIndex: 1, background: 'linear-gradient(to top, #0B0022 0%, transparent 100%)' }} />
 
-        {/* ── TWO-COLUMN GRID ─────────────────────────────────────────────── */}
-        <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
-          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
+        {/* ── HERO CONTENT — left aligned ──────────────────────────────────── */}
+        <div className="relative mx-auto w-full max-w-7xl px-6 sm:px-10 lg:px-16" style={{ zIndex: 3 }}>
+        <div className="py-8 sm:py-10" style={{ maxWidth: 620 }}>
 
-            {/* ── LEFT: Text + Search ──────────────────────────────────────── */}
-            <motion.div
-              initial={{ opacity: 0, x: -28 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          {/* Greeting pill */}
+          <motion.div
+            initial={{ opacity: 0, y: -14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05, duration: 0.45 }}
+            className="mb-5 inline-flex items-center gap-2 rounded-full px-4 py-2"
+            style={{
+              background: 'rgba(255,255,255,0.10)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+            }}
+          >
+            <span className="text-sm leading-none">{greeting.emoji}</span>
+            <span className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.90)' }}>
+              {greeting.text}{firstName ? `, ${firstName}` : ''}
+            </span>
+            <span className="h-1 w-1 rounded-full" style={{ background: 'rgba(255,255,255,0.30)' }} />
+            <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'rgba(196,181,253,0.85)' }}>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="rgba(167,139,250,1)">
+                <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.013 3.5-4.619 3.5-7.327A8.25 8.25 0 006.75 11.999c0 2.708 1.556 5.314 3.5 7.327a19.58 19.58 0 002.683 2.282 16.975 16.975 0 001.144.742zM21.75 11.999a9.75 9.75 0 11-19.5 0 9.75 9.75 0 0119.5 0zM12 9.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" clipRule="evenodd" />
+              </svg>
+              Hyderabad
+            </span>
+          </motion.div>
+
+          {/* Headline — large, left-aligned */}
+          <motion.h1
+            initial={{ opacity: 0, y: 22 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.10, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="text-5xl font-black leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl"
+            style={{ textShadow: '0 2px 12px rgba(0,0,0,0.90), 0 4px 32px rgba(0,0,0,0.70)' }}
+          >
+            What are you
+            <br />
+            <span style={{
+              background: 'linear-gradient(90deg, #C4B5FD 0%, #A78BFA 40%, #DDD6FE 70%, #C4B5FD 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              backgroundSize: '200% auto',
+              animation: 'gold-shimmer 5s linear infinite',
+            }}>craving</span>
+            {' '}today?
+          </motion.h1>
+
+          {/* Subtitle */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.18 }}
+            className="mt-3 text-base"
+            style={{ color: 'rgba(255,255,255,0.75)', textShadow: '0 1px 8px rgba(0,0,0,0.80)' }}
+          >
+            {greeting.tip}
+          </motion.p>
+
+          {/* ── SEARCH BAR ─────────────────────────────────────────────────── */}
+          <motion.form
+            onSubmit={handleSearch}
+            className="mt-7"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.20, duration: 0.5 }}
+          >
+            <div
+              className="flex items-center overflow-hidden rounded-2xl p-1.5"
+              style={{
+                background: 'rgba(255,255,255,0.12)',
+                border: '1.5px solid rgba(255,255,255,0.22)',
+                backdropFilter: 'blur(28px)',
+                WebkitBackdropFilter: 'blur(28px)',
+                boxShadow: '0 8px 40px rgba(0,0,0,0.45)',
+              }}
             >
-              {/* Greeting pill */}
-              <motion.div
-                initial={{ opacity: 0, y: -12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-                className="mb-5 inline-flex items-center gap-2 rounded-full px-4 py-2"
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: 'rgba(255,255,255,0.09)' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="2.3">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+              </div>
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Restaurants, dishes, cuisines…"
+                className="hero-input flex-1 px-3 text-sm font-medium"
+              />
+              {query && (
+                <button type="button" onClick={clearSearch} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>✕</button>
+              )}
+              <motion.button type="button" whileTap={{ scale: 0.88 }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl mx-1" style={{ background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.75)' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+                </svg>
+              </motion.button>
+              <motion.button
+                type="submit"
+                disabled={searching}
+                whileTap={{ scale: 0.95 }}
+                className="shrink-0 rounded-xl px-5 py-2.5 text-sm font-bold disabled:opacity-60"
                 style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.16)',
-                  backdropFilter: 'blur(12px)',
+                  background: 'linear-gradient(135deg, #5B21B6 0%, #7C3AED 60%, #8B5CF6 100%)',
+                  color: 'white',
+                  boxShadow: '0 4px 20px rgba(91,33,182,0.60)',
                 }}
               >
-                <span className="text-base">{greeting.emoji}</span>
-                <span className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>
-                  {greeting.text}{firstName ? `, ${firstName}` : ''}
-                </span>
-                <span className="h-1 w-1 rounded-full" style={{ background: 'rgba(255,255,255,0.3)' }} />
-                <span className="flex items-center gap-1 text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="rgba(167,139,250,0.9)">
-                    <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.013 3.5-4.619 3.5-7.327A8.25 8.25 0 006.75 11.999c0 2.708 1.556 5.314 3.5 7.327a19.58 19.58 0 002.683 2.282 16.975 16.975 0 001.144.742zM21.75 11.999a9.75 9.75 0 11-19.5 0 9.75 9.75 0 0119.5 0zM12 9.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" clipRule="evenodd" />
-                  </svg>
-                  Hyderabad
-                </span>
-              </motion.div>
+                {searching ? '…' : 'Search'}
+              </motion.button>
+            </div>
+          </motion.form>
 
-              {/* Headline */}
-              <motion.h1
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1, duration: 0.55 }}
-                className="text-5xl font-black leading-[1.04] tracking-tight text-white sm:text-6xl"
+          {/* Trending chips */}
+          <motion.div
+            className="mt-4 flex flex-wrap items-center gap-2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.28 }}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.26)' }}>Trending:</span>
+            {[
+              { label: '🍛 Biryani', q: 'biryani' },
+              { label: '🍕 Pizza',   q: 'pizza'   },
+              { label: '🍔 Burger',  q: 'burger'  },
+              { label: '🥗 Healthy', q: 'salad'   },
+              { label: '🍰 Desserts',q: 'dessert' },
+            ].map((tag) => (
+              <button
+                key={tag.q}
+                onClick={() => { setQuery(tag.q); runSearch(tag.q); }}
+                className="rounded-full px-3 py-1 text-xs font-semibold transition hover:bg-white/20"
+                style={{
+                  background: 'rgba(255,255,255,0.09)',
+                  color: 'rgba(255,255,255,0.75)',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  backdropFilter: 'blur(8px)',
+                }}
               >
-                What are you
-                <br />
-                <span
-                  style={{
-                    background: 'linear-gradient(90deg, #E9D5FF 0%, #C4B5FD 30%, #DDD6FE 60%, #A78BFA 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                    backgroundSize: '200% auto',
-                    animation: 'gold-shimmer 5s linear infinite',
-                  }}
-                >
-                  craving
-                </span>
-                {' '}today?
-              </motion.h1>
+                {tag.label}
+              </button>
+            ))}
+          </motion.div>
 
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.18 }}
-                className="mt-3 text-base leading-relaxed"
-                style={{ color: 'rgba(255,255,255,0.42)' }}
-              >
-                {greeting.tip}
-              </motion.p>
-
-              {/* ── SEARCH BAR ── premium boxed layout ─────────────────────── */}
-              <motion.form
-                onSubmit={handleSearch}
-                className="mt-8"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-              >
-                <div
-                  className="flex items-center overflow-hidden rounded-2xl p-1.5"
-                  style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    border: '1.5px solid rgba(255,255,255,0.22)',
-                    backdropFilter: 'blur(24px)',
-                    WebkitBackdropFilter: 'blur(24px)',
-                    boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)',
-                  }}
-                >
-                  {/* Search icon box */}
-                  <div
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                    style={{ background: 'rgba(255,255,255,0.1)' }}
-                  >
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="2.3">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                    </svg>
-                  </div>
-
-                  <input
-                    ref={searchRef}
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Restaurants, dishes, cuisines…"
-                    className="hero-input flex-1 px-3 text-sm font-medium"
-                  />
-
-                  {query && (
-                    <button
-                      type="button"
-                      onClick={clearSearch}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm transition"
-                      style={{ color: 'rgba(255,255,255,0.45)' }}
-                    >
-                      ✕
-                    </button>
-                  )}
-
-                  {/* Voice button */}
-                  <motion.button
-                    type="button"
-                    whileTap={{ scale: 0.88 }}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl mx-1 transition"
-                    style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.75)' }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-                    </svg>
-                  </motion.button>
-
-                  {/* Search CTA */}
-                  <motion.button
-                    type="submit"
-                    disabled={searching}
-                    whileTap={{ scale: 0.95 }}
-                    className="shrink-0 rounded-xl px-6 py-2.5 text-sm font-bold disabled:opacity-60 transition"
-                    style={{
-                      background: 'linear-gradient(135deg, #5B21B6 0%, #7C3AED 60%, #8B5CF6 100%)',
-                      color: 'white',
-                      boxShadow: '0 4px 20px rgba(91,33,182,0.6), inset 0 1px 0 rgba(255,255,255,0.18)',
-                    }}
-                  >
-                    {searching ? '…' : 'Search'}
-                  </motion.button>
-                </div>
-              </motion.form>
-
-              {/* Trending search chips */}
-              <motion.div
-                className="mt-4 flex flex-wrap items-center gap-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                  Trending:
-                </span>
-                {[
-                  { label: '🍛 Biryani', q: 'biryani' },
-                  { label: '🍕 Pizza', q: 'pizza' },
-                  { label: '🍔 Burger', q: 'burger' },
-                  { label: '🥗 Healthy', q: 'salad' },
-                  { label: '🍰 Desserts', q: 'dessert' },
-                ].map((tag) => (
-                  <button
-                    key={tag.q}
-                    onClick={() => { setQuery(tag.q); runSearch(tag.q); }}
-                    className="rounded-full px-3 py-1 text-xs font-semibold transition hover:bg-white/15"
-                    style={{
-                      background: 'rgba(255,255,255,0.08)',
-                      color: 'rgba(255,255,255,0.72)',
-                      border: '1px solid rgba(255,255,255,0.14)',
-                    }}
-                  >
-                    {tag.label}
-                  </button>
-                ))}
-              </motion.div>
-
-              {/* Stats row with dividers */}
-              <motion.div
-                className="mt-10 flex items-center"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.38 }}
-              >
-                {[
-                  { value: '500+', label: 'Restaurants', icon: '🏪' },
-                  { value: '30 min', label: 'Avg delivery', icon: '⚡' },
-                  { value: '4.8 ★', label: 'Avg rating', icon: '✨' },
-                ].map((s, i) => (
-                  <div key={s.label} className="flex items-center">
-                    {i > 0 && (
-                      <div
-                        className="mx-6 h-10 w-px"
-                        style={{ background: 'rgba(255,255,255,0.12)' }}
-                      />
-                    )}
-                    <div>
-                      <p className="text-2xl font-black text-white leading-none">{s.value}</p>
-                      <p className="mt-1 text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.38)' }}>
-                        {s.label}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </motion.div>
-            </motion.div>
-
-            {/* ── RIGHT: Food category showcase grid ──────────────────────── */}
-            <motion.div
-              className="hidden lg:block"
-              initial={{ opacity: 0, scale: 0.9, x: 28 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <div className="relative">
-                {/* 2×3 category grid */}
-                <div className="grid grid-cols-3 gap-3">
-                  {CATEGORIES.slice(0, 6).map((cat, i) => {
-                    const isActive = activeCategory === cat.q;
-                    return (
-                      <motion.button
-                        key={cat.q}
-                        onClick={() => handleCategory(cat)}
-                        initial={{ opacity: 0, y: 24 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.25 + i * 0.07 }}
-                        whileHover={{ scale: 1.06, y: -4 }}
-                        whileTap={{ scale: 0.94 }}
-                        className="flex flex-col items-center justify-center gap-3 rounded-2xl transition-all duration-200"
-                        style={{
-                          aspectRatio: '1',
-                          padding: '20px 12px',
-                          background: isActive
-                            ? `linear-gradient(135deg, ${cat.from}, ${cat.to})`
-                            : 'rgba(255,255,255,0.08)',
-                          border: `1.5px solid ${isActive ? cat.from : 'rgba(255,255,255,0.14)'}`,
-                          backdropFilter: 'blur(12px)',
-                          boxShadow: isActive
-                            ? `0 10px 32px ${cat.from}66`
-                            : '0 2px 16px rgba(0,0,0,0.25)',
-                        }}
-                      >
-                        <span className="text-4xl leading-none">{cat.emoji}</span>
-                        <span className="text-xs font-bold whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.85)' }}>
-                          {cat.label}
-                        </span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-
-                {/* Floating info badge — top right */}
-                <motion.div
-                  className="absolute -right-5 -top-5 flex items-center gap-2.5 rounded-2xl px-4 py-2.5"
-                  style={{
-                    background: 'rgba(255,255,255,0.12)',
-                    backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255,255,255,0.22)',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-                  }}
-                  animate={{ y: [0, -7, 0] }}
-                  transition={{ repeat: Infinity, duration: 3.2, ease: 'easeInOut' }}
-                >
-                  <span className="text-xl">🔥</span>
-                  <div>
-                    <p className="text-xs font-black text-white">100+ restaurants</p>
-                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.5)' }}>open right now</p>
-                  </div>
-                </motion.div>
-
-                {/* Floating info badge — bottom left */}
-                <motion.div
-                  className="absolute -bottom-5 -left-5 flex items-center gap-2.5 rounded-2xl px-4 py-2.5"
-                  style={{
-                    background: 'rgba(255,255,255,0.12)',
-                    backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255,255,255,0.22)',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-                  }}
-                  animate={{ y: [0, 7, 0] }}
-                  transition={{ repeat: Infinity, duration: 3.8, ease: 'easeInOut', delay: 0.6 }}
-                >
-                  <span className="text-xl">⚡</span>
-                  <div>
-                    <p className="text-xs font-black text-white">Avg 30 min</p>
-                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.5)' }}>delivery time</p>
-                  </div>
-                </motion.div>
-
-                {/* Decorative glow behind grid */}
-                <div
-                  className="pointer-events-none absolute inset-0 -z-10 rounded-3xl opacity-30 blur-2xl"
-                  style={{ background: 'radial-gradient(circle at center, #7C3AED 0%, transparent 70%)' }}
-                />
-              </div>
-            </motion.div>
-
-          </div>
+        </div>
         </div>
 
-        {/* Bottom wave curve */}
-        <div className="absolute bottom-0 left-0 right-0 overflow-hidden leading-none">
-          <svg viewBox="0 0 1440 48" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ display: 'block', height: 48, width: '100%' }}>
-            <path d="M0 48 C360 0 1080 0 1440 48 L1440 48 L0 48 Z" fill="var(--bg)" />
-          </svg>
-        </div>
       </section>
 
       {/* ── PAGE BODY ─────────────────────────────────────────────────────── */}
